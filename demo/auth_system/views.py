@@ -10,14 +10,17 @@ from twilio.rest import Client
 from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
+from dotenv import load_dotenv
 
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
 
-# Twilio Credentials (Replace with your Twilio details)
-TWILIO_ACCOUNT_SID = "AC0d13470e3d234ed3badd2ce949c18ae9"
-TWILIO_AUTH_TOKEN = "81bf50f00126aceb10e2aaffd37cfa02"
-TWILIO_PHONE_NUMBER = "+918008562381"
+load_dotenv()
+# SECURITY WARNING: keep the secret key used in production secret!
+SECRET_KEY = process.env.SECRET_KEY
+TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
+TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
+TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER
 
 # Google OAuth Client ID (Replace with your credentials)
 GOOGLE_CLIENT_ID = "your_google_client_id"

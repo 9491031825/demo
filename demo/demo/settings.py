@@ -9,7 +9,7 @@ https://docs.djangoproject.com/en/5.1/topics/settings/
 For the full list of settings and their values, see
 https://docs.djangoproject.com/en/5.1/ref/settings/
 """
-
+from dotenv import load_dotenv
 from pathlib import Path
 from datetime import timedelta
 AUTH_USER_MODEL = 'auth_system.CustomUser'
@@ -20,12 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
-
+load_dotenv()
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-qiha=1ihmd#b0#g)w_&#k6@(wf5ip8_*uxzj)1s4rpfxw91t_#'
-TWILIO_ACCOUNT_SID = "AC0d13470e3d234ed3badd2ce949c18ae9"
-TWILIO_AUTH_TOKEN = "81bf50f00126aceb10e2aaffd37cfa02"
-TWILIO_PHONE_NUMBER = "+918008562381"
+SECRET_KEY = process.env.SECRET_KEY
+TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
+TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
+TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
