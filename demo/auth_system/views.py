@@ -11,16 +11,16 @@ from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
 from dotenv import load_dotenv
-
+import os
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
 
 load_dotenv()
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = process.env.SECRET_KEY
-TWILIO_ACCOUNT_SID = process.env.TWILIO_ACCOUNT_SID
-TWILIO_AUTH_TOKEN = process.env.TWILIO_AUTH_TOKEN
-TWILIO_PHONE_NUMBER = process.env.TWILIO_PHONE_NUMBER
+SECRET_KEY = os.getenv('SECRET_KEY')
+TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
+TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
+TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 
 # Google OAuth Client ID (Replace with your credentials)
 GOOGLE_CLIENT_ID = "your_google_client_id"
