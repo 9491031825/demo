@@ -1,0 +1,69 @@
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Django stuff:
+*.log
+*.pot
+
+# If you have a local SQLite database (commonly used during development), ignore it.
+db.sqlite3
+
+# Django migrations should be tracked by version control unless you have a specific reason not to.
+# However, if you want to ignore them, uncomment the following line:
+# **/migrations/
+
+# Environment variables and sensitive settings (store sensitive info outside of version control)
+.env
+local_settings.py
+
+# Virtual environments
+env/
+venv/
+ENV/
+VENV/
+.venv/
+
+# IDE and Editor directories/files
+# PyCharm
+.idea/
+# VS Code
+.vscode/
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Test coverage and reports
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# Backup and temporary files
+*~
+*.swp
