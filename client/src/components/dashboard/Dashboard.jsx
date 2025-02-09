@@ -1,11 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerSearch from './CustomerSearch';
 import NewCustomerForm from './NewCustomerForm';
+import Modal from '../common/Modal';
 import axios from '../../services/axios';
 
 export default function Dashboard() {
   const navigate = useNavigate();
+  const [isModalOpen, setIsModalOpen] = useState(false);
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -30,13 +32,51 @@ export default function Dashboard() {
     verifyAuth();
   }, [navigate]);
 
+  const handleLogout = () => {
+    // Clear all tokens and auth data
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('username');
+    
+    // Remove Authorization header
+    delete axios.defaults.headers.common['Authorization'];
+    
+    // Redirect to login page
+    navigate('/login');
+  };
+
+
   return (
     <div className="container mx-auto p-4">
-      <h1 className="text-2xl font-bold mb-4">Dashboard</h1>
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <CustomerSearch />
-        <NewCustomerForm />
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Dashboard</h1>
+        <div className="space-x-4">
+          <button
+            onClick={() => setIsModalOpen(true)}
+            className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
+          >
+            Add New Customer
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+          >
+            Logout
+          </button>
+        </div>
       </div>
+      
+      <div className="w-full">
+        <CustomerSearch />
+      </div>
+
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title="Add New Customer"
+      >
+        <NewCustomerForm onSuccess={() => setIsModalOpen(false)} />
+      </Modal>
     </div>
   );
 }
