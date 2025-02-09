@@ -1,0 +1,28 @@
+# Core Django Dependencies
+Django>=5.1.5
+djangorestframework>=3.14.0
+djangorestframework-simplejwt>=5.3.0
+django-cors-headers>=4.3.0
+django-otp>=1.2.2
+
+# Database
+psycopg2-binary>=2.9.9
+
+# Environment Variables
+python-dotenv>=1.0.0
+
+# Authentication & Security
+twilio>=8.10.0
+google-auth>=2.23.0
+
+# API & Communication
+requests>=2.31.0
+
+# Development & Testing
+pytest>=7.4.0
+pytest-django>=4.7.0
+coverage>=7.3.0
+
+# Production
+gunicorn>=21.2.0
+whitenoise>=6.5.0

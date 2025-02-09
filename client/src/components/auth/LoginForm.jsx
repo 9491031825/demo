@@ -5,7 +5,7 @@ import axios from '../../services/axios';
 export default function LoginForm() {
   const [formData, setFormData] = useState({
     username: '',
-    phone_number: ''
+    password: ''
   });
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -17,19 +17,12 @@ export default function LoginForm() {
     setError('');
     
     try {
-      // First verify if user exists
       const loginResponse = await axios.post('/user/login/', formData);
       
       if (loginResponse.data.next) {
-        // Send OTP using the correct endpoint
-        const otpResponse = await axios.post('/user/login/phone/verify/', {
-          phone_number: formData.phone_number
-        });
-        
-        if (otpResponse.data.message) {
-          localStorage.setItem('phone_number', formData.phone_number);
-          navigate('/verify-otp');
-        }
+        // Store username for OTP verification
+        localStorage.setItem('username', formData.username);
+        navigate('/verify-otp');
       }
     } catch (err) {
       setError(err.response?.data?.error || 'Login failed');
@@ -62,16 +55,16 @@ export default function LoginForm() {
               />
             </div>
             <div>
-              <label htmlFor="phone_number" className="sr-only">Phone Number</label>
+              <label htmlFor="password" className="sr-only">Password</label>
               <input
-                id="phone_number"
-                name="phone_number"
-                type="tel"
+                id="password"
+                name="password"
+                type="password"
                 required
                 className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-                placeholder="Phone Number"
-                value={formData.phone_number}
-                onChange={(e) => setFormData({...formData, phone_number: e.target.value})}
+                placeholder="Password"
+                value={formData.password}
+                onChange={(e) => setFormData({...formData, password: e.target.value})}
               />
             </div>
           </div>

@@ -7,7 +7,6 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import UserSerializer, CustomerSerializer, TransactionSerializer
 import random
 from twilio.rest import Client
-from google.oauth2 import id_token
 from google.auth.transport import requests
 from django.conf import settings
 from dotenv import load_dotenv
@@ -35,99 +34,94 @@ TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 # Google OAuth Client ID (Replace with your credentials)
 GOOGLE_CLIENT_ID = "your_google_client_id"
 
+# Load environment variables
+import os
+
+ADMIN_PHONE = os.getenv('ADMIN_PHONE')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
 
 #user login
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
     username = request.data.get('username')
-    phone_number = request.data.get('phone_number')
+    password = request.data.get('password')
 
+    user = authenticate(username=username, password=password)
+
+    if user is None:
+        return Response({"error": "Invalid credentials"}, status=401)
+
+    # Generate a 6-digit OTP
+    otp = str(random.randint(100000, 999999))
+    otp_storage[username] = otp
+    print(otp)  # For development purposes
+
+    # Send OTP via Email
+    email_status = "OTP sent via email."
     try:
-        user = User.objects.get(username=username, phone_number=phone_number)
-    except User.DoesNotExist:
-        return Response({"error": "User not found"}, status=404)
-
-    # If user exists, proceed to phone OTP verification step
-    return Response({"message": "User found, proceed to OTP verification", "next": "/user/login/phone/verify/"})
-
-
-#phone otp verification
-@api_view(['POST'])
-def send_phone_otp(request):
-    phone = request.data.get('phone_number')
-
-    if not phone:
-        return Response({"error": "Phone number is required"}, status=400)
-
-    user = get_object_or_404(User, phone_number=phone)
-    
-    otp = random.randint(100000, 999999)
-    otp_storage[phone] = otp  # Store OTP in memory (Use Redis in production)
-    print(otp)
-    # Send OTP via Twilio
-    try:
-        client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-        message = client.messages.create(
-            body=f"Your OTP is {otp}",
-            from_=TWILIO_PHONE_NUMBER,
-            to="+91"+phone
+        send_mail(
+            "Your Login OTP",
+            f"{username}'s login OTP generated: {otp}",
+            "no-reply@example.com",
+            [ADMIN_EMAIL],
+            fail_silently=False,
         )
-        return Response({"message": "OTP sent successfully"})
     except Exception as e:
-        return Response({"error": f"Failed to send OTP: {str(e)}"}, status=500)
+        email_status = f"Failed to send OTP via email. Error: {str(e)}"
 
-@api_view(['POST'])
-def verify_phone_otp(request):
-    phone = request.data.get('phone_number')
-    user_otp = request.data.get('otp')
-    
-    print(f"Received OTP verification request - Phone: {phone}, OTP: {user_otp}")  # Debug log
-    print(f"Stored OTP for this phone: {otp_storage.get(phone)}")  # Debug log
+    # Send OTP via SMS
+    sms_status = "OTP sent via SMS."
+    try:
+        if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
+            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+            client.messages.create(
+                body=f"{username}'s login OTP generated: {otp}",
+                from_=TWILIO_PHONE_NUMBER,
+                to=ADMIN_PHONE,
+            )
+        else:
+            sms_status = "Twilio credentials or admin phone number is missing."
+    except Exception as e:
+        sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
 
-    if not phone or not user_otp:
-        return Response({"error": "Phone number and OTP are required"}, status=400)
+    return Response({
+        "message": "OTP process completed.",
+        "email_status": email_status,
+        "sms_status": sms_status,
+        "next": "/user/login/otpverification"
+    })
 
-    stored_otp = otp_storage.get(phone)
-    
-    if stored_otp and int(user_otp) == stored_otp:
-        user = get_object_or_404(User, phone_number=phone)
-        user.verified_phone = True
-        user.save()
-        
-        del otp_storage[phone]
-        
-        refresh = RefreshToken.for_user(user)
-        
-        return Response({
-            "message": "OTP verified successfully",
-            "access_token": str(refresh.access_token),
-            "refresh_token": str(refresh),
-            "user": UserSerializer(user).data,
-            "token_type": "Bearer",
-            "expires_in": 3600
-        })
-    
-    return Response({"error": "Invalid OTP"}, status=400)
-
-#google oauth login and verify
 @api_view(['POST'])
 @permission_classes([AllowAny])
-def google_login(request):
-    token = request.data.get('token')
-    
-    try:
-        idinfo = id_token.verify_oauth2_token(token, requests.Request(), GOOGLE_CLIENT_ID)
-        email = idinfo['email']
+def verify_user(request):
+    username = request.data.get('username')
+    otp_entered = request.data.get('otp')
 
-        user, created = User.objects.get_or_create(email=email, defaults={"username": email.split('@')[0]})
-        user.verified_email = True
-        user.save()
-        
-        return Response({"message": "Google login successful", "next": "/user/login/email/verify/"})
-    
-    except:
-        return Response({"error": "Invalid Google token"}, status=400)
+    if not username or not otp_entered:
+        return Response({"error": "Username and OTP are required."}, status=400)
+
+    stored_otp = otp_storage.get(username)
+
+    if stored_otp is None:
+        return Response({"error": "No OTP found. Please request a new OTP."}, status=400)
+
+    if otp_entered != stored_otp:
+        return Response({"error": "Invalid OTP."}, status=401)
+
+    # OTP is correct, remove from storage
+    del otp_storage[username]
+
+    # Generate JWT Token
+    user = get_object_or_404(User, username=username)
+    refresh = RefreshToken.for_user(user)
+
+    return Response({
+        "message": "OTP verified successfully!",
+        "access_token": str(refresh.access_token),
+        "refresh_token": str(refresh),
+        "redirect": "/dashboard"
+    }, status=200)
 
 
 #email sending otp

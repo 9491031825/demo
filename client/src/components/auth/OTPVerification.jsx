@@ -17,18 +17,18 @@ export default function OTPVerification() {
     setError('');
 
     try {
-      const phone_number = localStorage.getItem('phone_number');
+      const username = localStorage.getItem('username');
       console.log('Sending verification request:', {
-        phone_number,
+        username,
         otp
       });
       
-      const response = await axios.post('/user/login/phone/otp/', {
-        phone_number,
+      const response = await axios.post('/user/login/otpverification/', {
+        username,
         otp: otp.toString()
       });
       
-      console.log('OTP verification response:', response.data); // Debug log
+      console.log('OTP verification response:', response.data);
       
       if (response.data.access_token) {
         // Store tokens
@@ -40,15 +40,15 @@ export default function OTPVerification() {
         
         // Update Redux store
         dispatch(verifyOTP({
-          user: response.data.user,
           token: response.data.access_token
         }));
         
-        console.log('Navigation triggered to dashboard'); // Debug log
-        
-        // Force navigation to dashboard
-        window.location.href = '/dashboard';
-        // Alternative: navigate('/dashboard', { replace: true });
+        // Navigate based on the redirect path from the response
+        if (response.data.redirect) {
+          window.location.href = response.data.redirect;
+        } else {
+          window.location.href = '/dashboard';
+        }
       }
     } catch (err) {
       console.error('OTP Verification Error:', err);
@@ -60,8 +60,8 @@ export default function OTPVerification() {
 
   // Add protection to prevent unauthorized access
   useEffect(() => {
-    const phone_number = localStorage.getItem('phone_number');
-    if (!phone_number) {
+    const username = localStorage.getItem('username');
+    if (!username) {
       navigate('/login');
     }
   }, [navigate]);
@@ -74,7 +74,7 @@ export default function OTPVerification() {
             Enter OTP
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            We've sent a code to your phone
+            We've sent a verification code to the admin
           </p>
         </div>
         

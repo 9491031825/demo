@@ -34,12 +34,14 @@ EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
 EMAIL_HOST = 'smtp.gmail.com'
 EMAIL_PORT = 587
 EMAIL_USE_TLS = True
-EMAIL_HOST_USER = 'pallelarakesh5@gmail.com'  # Replace with your Gmail
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')  # Replace with your Gmail
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  # Use App Password, not your Gmail password
 
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
+
+ALLOWED_OFFICE_IPS = ['127.0.0.1', '175.184.253.10']  # Replace with your actual office IPs
 
 ALLOWED_HOSTS = []
 
@@ -50,9 +52,15 @@ REST_FRAMEWORK = {
 }
 
 SIMPLE_JWT = {
-    'ACCESS_TOKEN_LIFETIME': timedelta(minutes=30),
-    'REFRESH_TOKEN_LIFETIME': timedelta(days=1),
+    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=1), 
+    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),     
+    "ROTATE_REFRESH_TOKENS": True,  
+    "BLACKLIST_AFTER_ROTATION": True,
+    "ALGORITHM": "HS256",
+    "SIGNING_KEY": SECRET_KEY,
+    "AUTH_HEADER_TYPES": ("Bearer",),
 }
+
 
 
 # Application definition
@@ -113,7 +121,7 @@ WSGI_APPLICATION = 'demo.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'test',
+        'NAME': 'Test2',
         'USER': 'postgres',
         'PASSWORD': 'password',
         'HOST': 'localhost',
