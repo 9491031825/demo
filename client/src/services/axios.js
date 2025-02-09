@@ -1,7 +1,8 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  baseURL: '/api',
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -13,46 +14,42 @@ export const setSessionTimeoutCallback = (callback) => {
   sessionTimeoutCallback = callback;
 };
 
+// Function to get CSRF token from cookie
+function getCookie(name) {
+  let cookieValue = null;
+  if (document.cookie && document.cookie !== '') {
+    const cookies = document.cookie.split(';');
+    for (let i = 0; i < cookies.length; i++) {
+      const cookie = cookies[i].trim();
+      if (cookie.substring(0, name.length + 1) === (name + '=')) {
+        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+        break;
+      }
+    }
+  }
+  return cookieValue;
+}
+
+// Add request interceptor to add token
 instance.interceptors.request.use(
-  (config) => {
+  config => {
     const token = localStorage.getItem('access_token');
     if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+      config.headers['Authorization'] = `Bearer ${token}`;
     }
     return config;
   },
-  (error) => {
-    return Promise.reject(error);
-  }
+  error => Promise.reject(error)
 );
 
+// Add response interceptor
 instance.interceptors.response.use(
-  (response) => response,
-  async (error) => {
-    const originalRequest = error.config;
-    const isAuthRequest = originalRequest.url.includes('/login/') || originalRequest.url.includes('/token/refresh/');
-
-    if (error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
-      originalRequest._retry = true;
-      const refreshToken = localStorage.getItem('refresh_token');
-
-      try {
-        const response = await instance.post('/user/token/refresh/', {
-          refresh: refreshToken
-        });
-
-        if (response.data.access) {
-          localStorage.setItem('access_token', response.data.access);
-          instance.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
-          return instance(originalRequest);
-        }
-      } catch (refreshError) {
-        if (sessionTimeoutCallback) {
-          sessionTimeoutCallback();
-        }
-      }
+  response => response,
+  async error => {
+    if (error.response?.status === 401) {
+      localStorage.clear();
+      window.location.replace('/login');
     }
-
     return Promise.reject(error);
   }
 );

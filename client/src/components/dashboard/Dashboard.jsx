@@ -19,12 +19,14 @@ export default function Dashboard() {
         }
 
         // Verify token validity
-        const response = await axios.get('/api/auth/verify/');
+        const response = await axios.get('/auth/verify/');
         if (!response.data.isValid) {
+          localStorage.clear();
           navigate('/login');
         }
       } catch (error) {
         console.error('Auth verification failed:', error);
+        localStorage.clear();
         navigate('/login');
       }
     };

@@ -20,6 +20,7 @@ from django.db.models import Q
 from .models import Transaction, Customer
 from datetime import datetime, timedelta
 import pytz
+from django.views.generic import TemplateView
 
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
@@ -41,61 +42,71 @@ import os
 ADMIN_PHONE = os.getenv('ADMIN_PHONE')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
 
-#user login
+
+
+class ReactAppView(TemplateView):
+    template_name = 'index.html'
+
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def user_login(request):
     username = request.data.get('username')
     password = request.data.get('password')
-
+    is_resend = request.data.get('resend', False)
+    
+    if not username or not password:
+        return Response({"error": "Username and password are required."}, status=400)
+    
     user = authenticate(username=username, password=password)
+    
+    if user is not None:
+        # Generate a 6-digit OTP
+        otp = str(random.randint(100000, 999999))
+        otp_storage[username] = {
+            'otp': otp,
+            'timestamp': datetime.now(pytz.UTC)
+        }
+        print(otp)  # For development purposes
 
-    if user is None:
-        return Response({"error": "Invalid credentials"}, status=401)
+        # # Send OTP via Email
+        # email_status = "OTP sent via email."
+        # try:
+        #     send_mail(
+        #         "Your Login OTP",
+        #         f"{username}'s login OTP generated: {otp}",
+        #         "no-reply@example.com",
+        #         [ADMIN_EMAIL],
+        #         fail_silently=False,
+        #     )
+        # except Exception as e:
+        #     email_status = f"Failed to send OTP via email. Error: {str(e)}"
 
-    # Generate a 6-digit OTP
-    otp = str(random.randint(100000, 999999))
-    otp_storage[username] = {
-        'otp': otp,
-        'timestamp': datetime.now(pytz.UTC)
-    }
-    print(otp)  # For development purposes
+        # # Send OTP via SMS
+        # sms_status = "OTP sent via SMS."
+        # try:
+        #     if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
+        #         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+        #         client.messages.create(
+        #             body=f"{username}'s login OTP generated: {otp}",
+        #             from_=TWILIO_PHONE_NUMBER,
+        #             to=ADMIN_PHONE,
+        #         )
+        #     else:
+        #         sms_status = "Twilio credentials or admin phone number is missing."
+        # except Exception as e:
+        #     sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
 
-    # Send OTP via Email
-    email_status = "OTP sent via email."
-    try:
-        send_mail(
-            "Your Login OTP",
-            f"{username}'s login OTP generated: {otp}",
-            "no-reply@example.com",
-            [ADMIN_EMAIL],
-            fail_silently=False,
-        )
-    except Exception as e:
-        email_status = f"Failed to send OTP via email. Error: {str(e)}"
+        return Response({
+            "message": "OTP process completed.",
+            # "email_status": email_status,
+            # "sms_status": sms_status,
+            "next": "/user/login/otpverification"
+        })
+    else:
+        return Response({"error": "Invalid credentials."}, status=401)
 
-    # Send OTP via SMS
-    sms_status = "OTP sent via SMS."
-    try:
-        if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
-            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-            client.messages.create(
-                body=f"{username}'s login OTP generated: {otp}",
-                from_=TWILIO_PHONE_NUMBER,
-                to=ADMIN_PHONE,
-            )
-        else:
-            sms_status = "Twilio credentials or admin phone number is missing."
-    except Exception as e:
-        sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
-
-    return Response({
-        "message": "OTP process completed.",
-        # "email_status": email_status,
-        # "sms_status": sms_status,
-        "next": "/user/login/otpverification"
-    })
-
+@csrf_exempt
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_user(request):
@@ -112,7 +123,7 @@ def verify_user(request):
 
     # Check if OTP has expired (5 minutes)
     time_diff = datetime.now(pytz.UTC) - stored_otp_data['timestamp']
-    if time_diff > timedelta(seconds=15):
+    if time_diff > timedelta(minutes=2):
         # Remove expired OTP
         del otp_storage[username]
         return Response({"error": "OTP has expired. Please request a new one."}, status=400)
@@ -126,12 +137,15 @@ def verify_user(request):
     # Generate JWT Token
     user = get_object_or_404(User, username=username)
     refresh = RefreshToken.for_user(user)
+    access_token = str(refresh.access_token)
+
+    # Log in the user
+    login(request, user)
 
     return Response({
         "message": "OTP verified successfully!",
-        "access_token": str(refresh.access_token),
-        "refresh_token": str(refresh),
-        "redirect": "/dashboard"
+        "access_token": access_token,
+        "refresh_token": str(refresh)
     }, status=200)
 
 
