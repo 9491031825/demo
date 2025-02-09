@@ -1,30 +1,50 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import axios from '../../services/axios';
-
-const initialState = {
-  searchResults: [],
-  loading: false,
-  error: null
-};
+import { customerAPI } from '../../services/api';
 
 export const searchCustomers = createAsyncThunk(
   'customers/search',
   async (query, { rejectWithValue }) => {
     try {
-      const response = await axios.get(`/customers/search/?q=${query}`);
-      return response.data;
+      const data = await customerAPI.search(query);
+      return data;
     } catch (error) {
       return rejectWithValue(error.response.data);
     }
   }
 );
 
+export const createCustomer = createAsyncThunk(
+  'customers/create',
+  async (customerData, { rejectWithValue }) => {
+    try {
+      const data = await customerAPI.create(customerData);
+      return data;
+    } catch (error) {
+      return rejectWithValue(error.response.data);
+    }
+  }
+);
+
+const initialState = {
+  customers: [],
+  selectedCustomer: null,
+  loading: false,
+  error: null,
+  searchResults: [],
+};
+
 const customerSlice = createSlice({
   name: 'customers',
   initialState,
   reducers: {
+    setSelectedCustomer: (state, action) => {
+      state.selectedCustomer = action.payload;
+    },
     clearSearchResults: (state) => {
       state.searchResults = [];
+    },
+    clearError: (state) => {
+      state.error = null;
     },
   },
   extraReducers: (builder) => {
@@ -39,11 +59,22 @@ const customerSlice = createSlice({
       })
       .addCase(searchCustomers.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.error || 'Failed to search customers';
-        state.searchResults = [];
+        state.error = action.payload?.error || 'Search failed';
+      })
+      .addCase(createCustomer.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+      .addCase(createCustomer.fulfilled, (state, action) => {
+        state.loading = false;
+        state.customers.push(action.payload);
+      })
+      .addCase(createCustomer.rejected, (state, action) => {
+        state.loading = false;
+        state.error = action.payload?.error || 'Failed to create customer';
       });
   },
 });
 
-export const { clearSearchResults } = customerSlice.actions;
+export const { setSelectedCustomer, clearSearchResults, clearError } = customerSlice.actions;
 export default customerSlice.reducer;

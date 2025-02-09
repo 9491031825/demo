@@ -34,16 +34,13 @@ export default function CustomerSearch() {
     
     // Cleanup function
     return () => {
-      debouncedSearch.cancel?.();
+      debouncedSearch.cancel?.(); // Use optional chaining
     };
   }, [searchTerm, debouncedSearch]);
 
   if (selectedCustomer) {
     return <TransactionForm customer={selectedCustomer} onBack={() => setSelectedCustomer(null)} />;
   }
-
-  // Ensure customers is an array
-  const customerList = Array.isArray(customers) ? customers : [];
 
   return (
     <div className="space-y-4">
@@ -67,7 +64,7 @@ export default function CustomerSearch() {
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-        {customerList.map((customer) => (
+        {customers.map((customer) => (
           <div
             key={customer.id}
             className="bg-white p-4 rounded-lg shadow hover:shadow-md cursor-pointer transition-shadow"
@@ -82,7 +79,7 @@ export default function CustomerSearch() {
         ))}
       </div>
 
-      {searchTerm && customerList.length === 0 && !loading && (
+      {searchTerm && customers.length === 0 && !loading && (
         <div className="text-center text-gray-500 py-4">
           No customers found
         </div>

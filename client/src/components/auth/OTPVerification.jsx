@@ -69,35 +69,35 @@ export default function OTPVerification() {
       const username = localStorage.getItem('username');
       const response = await axios.post('/user/login/otpverification/', {
         username,
-        otp: otp
+        otp: otp.toString()
       });
       
       if (response.data.access_token) {
-        // Store tokens
+        localStorage.removeItem('temp_password'); // Clean up stored password
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
         
-        // Update auth state
-        await dispatch(verifyOTP({
+        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
+        
+        dispatch(verifyOTP({
           token: response.data.access_token
         }));
         
-        // Set authorization header
-        axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
-        
-        // Clean up
-        localStorage.removeItem('temp_password');
-        
-        // Navigate to dashboard
-        navigate('/dashboard', { replace: true });
+        if (response.data.redirect) {
+          window.location.href = response.data.redirect;
+        } else {
+          window.location.href = '/dashboard';
+        }
       }
     } catch (err) {
       console.error('OTP Verification Error:', err);
-      setError(err.response?.data?.error || 'Invalid OTP');
+      const errorMessage = err.response?.data?.error || 'Invalid OTP';
+      setError(errorMessage);
       
-      if (err.response?.status === 401) {
-        localStorage.clear();
-        navigate('/login', { replace: true });
+      if (errorMessage.includes('expired')) {
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
       }
     } finally {
       setIsLoading(false);

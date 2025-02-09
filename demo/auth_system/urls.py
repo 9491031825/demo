@@ -8,10 +8,11 @@ from .views import (
 urlpatterns = [
     path('user/login/', user_login, name="user_login"),
     path('user/login/otpverification/', verify_user, name="verify_user"),
-    path('auth/verify/', verify_token, name='verify_token'),
-    path('customers/search/', search_customers, name='search_customers'),
-    path('customers/create/', create_customer, name='create_customer'),
-    path('customers/<int:customer_id>/transactions/', get_transactions, name='get_transactions'),
+    path('home/', home_page, name="home_page"),
     path('twilio/incoming/', twilio_incoming),
     path('twilio/status/', twilio_status),
+    path('api/auth/verify/', verify_token, name='verify_token'),
+    path('api/customers/search/', search_customers, name='search_customers'),
+    path('api/customers/create/', create_customer, name='create_customer'),
+    path('api/customers/<int:customer_id>/transactions/', get_transactions, name='get_transactions'),
 ]

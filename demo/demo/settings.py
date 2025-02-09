@@ -12,11 +12,6 @@ https://docs.djangoproject.com/en/5.1/ref/settings/
 from dotenv import load_dotenv
 from pathlib import Path
 from datetime import timedelta
-import os
-
-
-load_dotenv()
-
 AUTH_USER_MODEL = 'auth_system.CustomUser'
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -25,7 +20,9 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/5.1/howto/deployment/checklist/
+load_dotenv()
 # SECURITY WARNING: keep the secret key used in production secret!
+import os
 
 SECRET_KEY = os.getenv('SECRET_KEY')
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
@@ -90,7 +87,6 @@ INSTALLED_APPS = [
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',
     'django.middleware.security.SecurityMiddleware',
-    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -104,9 +100,7 @@ ROOT_URLCONF = 'demo.urls'
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [
-            os.path.join(BASE_DIR, 'build')
-        ],
+        'DIRS': [],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [
@@ -128,11 +122,11 @@ WSGI_APPLICATION = 'demo.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': os.getenv('DB_NAME'),
-        'USER': os.getenv('DB_USER'),
-        'PASSWORD': os.getenv('DB_PASSWORD'),
-        'HOST': os.getenv('DB_HOST'),
-        'PORT': os.getenv('DB_PORT'),
+        'NAME': 'Mhhb Database',
+        'USER': 'postgres',
+        'PASSWORD': 'new_password',
+        'HOST': 'localhost',
+        'PORT': '5432',
     }
 }
 
@@ -170,8 +164,7 @@ USE_TZ = True
 # Static files (CSS, JavaScript, Images)
 # https://docs.djangoproject.com/en/5.1/howto/static-files/
 
-STATIC_URL = '/static/'
-STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+STATIC_URL = 'static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/5.1/ref/settings/#default-auto-field
@@ -179,7 +172,7 @@ STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 # During development
-CORS_ALLOW_ALL_ORIGINS = True  # For development only
+CORS_ALLOW_ALL_ORIGINS = True  # Only for development
 CORS_ALLOW_CREDENTIALS = True
 
 # For production, specify allowed origins
@@ -187,17 +180,3 @@ CORS_ALLOW_CREDENTIALS = True
 #     "http://localhost:3000",
 #     "http://your-production-domain.com",
 # ]
-
-# Add these settings
-STATICFILES_DIRS = [
-    os.path.join(BASE_DIR, 'build', 'static'),
-]
-
-# Add this at the bottom of settings.py
-WHITENOISE_USE_FINDERS = True
-STATICFILES_STORAGE = 'whitenoise.storage.CompressedManifestStaticFilesStorage'
-
-CSRF_TRUSTED_ORIGINS = [
-    'http://localhost:3000',  # Add your frontend URL
-    'http://127.0.0.1:3000',
-]
