@@ -80,6 +80,7 @@ INSTALLED_APPS = [
     'django_otp.plugins.otp_static',
     'auth_system',
     'corsheaders',
+    'import_export',
 ]
 
 
@@ -121,9 +122,9 @@ WSGI_APPLICATION = 'demo.wsgi.application'
 DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.postgresql',
-        'NAME': 'Test2',
+        'NAME': 'Mhhb Database',
         'USER': 'postgres',
-        'PASSWORD': 'password',
+        'PASSWORD': 'new_password',
         'HOST': 'localhost',
         'PORT': '5432',
     }

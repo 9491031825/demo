@@ -3,7 +3,7 @@ from django.db import models
 from django.conf import settings
 
 class CustomUser(AbstractUser):
-    phone_number = models.CharField(max_length=15, unique=True, blank=False, null=False)
+    phone_number = models.CharField(max_length=15,  blank=False, null=False)
     approved_devices = models.JSONField(default=list, blank=True)  # Optional: Store approved device details
     verified_email = models.BooleanField(default=False)
     verified_phone = models.BooleanField(default=False)
