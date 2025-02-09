@@ -18,6 +18,8 @@ from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
 from django.db.models import Q
 from .models import Transaction, Customer
+from datetime import datetime, timedelta
+import pytz
 
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
@@ -31,8 +33,7 @@ TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 
-# Google OAuth Client ID (Replace with your credentials)
-GOOGLE_CLIENT_ID = "your_google_client_id"
+
 
 # Load environment variables
 import os
@@ -54,7 +55,10 @@ def user_login(request):
 
     # Generate a 6-digit OTP
     otp = str(random.randint(100000, 999999))
-    otp_storage[username] = otp
+    otp_storage[username] = {
+        'otp': otp,
+        'timestamp': datetime.now(pytz.UTC)
+    }
     print(otp)  # For development purposes
 
     # Send OTP via Email
@@ -87,8 +91,8 @@ def user_login(request):
 
     return Response({
         "message": "OTP process completed.",
-        "email_status": email_status,
-        "sms_status": sms_status,
+        # "email_status": email_status,
+        # "sms_status": sms_status,
         "next": "/user/login/otpverification"
     })
 
@@ -101,15 +105,22 @@ def verify_user(request):
     if not username or not otp_entered:
         return Response({"error": "Username and OTP are required."}, status=400)
 
-    stored_otp = otp_storage.get(username)
+    stored_otp_data = otp_storage.get(username)
 
-    if stored_otp is None:
+    if not stored_otp_data:
         return Response({"error": "No OTP found. Please request a new OTP."}, status=400)
 
-    if otp_entered != stored_otp:
+    # Check if OTP has expired (5 minutes)
+    time_diff = datetime.now(pytz.UTC) - stored_otp_data['timestamp']
+    if time_diff > timedelta(seconds=15):
+        # Remove expired OTP
+        del otp_storage[username]
+        return Response({"error": "OTP has expired. Please request a new one."}, status=400)
+
+    if otp_entered != stored_otp_data['otp']:
         return Response({"error": "Invalid OTP."}, status=401)
 
-    # OTP is correct, remove from storage
+    # OTP is correct and not expired, remove from storage
     del otp_storage[username]
 
     # Generate JWT Token
@@ -247,3 +258,40 @@ def verify_token(request):
             "user": UserSerializer(request.user).data
         })
     return Response({"isValid": False}, status=401)
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def login_user(request):
+    username = request.data.get('username')
+    password = request.data.get('password')
+    is_resend = request.data.get('resend', False)
+    
+    if not username or not password:
+        return Response({"error": "Username and password are required."}, status=400)
+    
+    user = authenticate(username=username, password=password)
+    
+    if user is not None:
+        # Generate OTP and store with timestamp
+        otp = str(random.randint(100000, 999999))
+        otp_storage[username] = {
+            'otp': otp,
+            'timestamp': datetime.now(pytz.UTC)
+        }
+        
+        # Send OTP to admin
+        try:
+            send_mail(
+                'OTP for Login',
+                f'OTP for user {username} is {otp}',
+                'your-email@example.com',
+                [ADMIN_EMAIL],
+                fail_silently=False,
+            )
+            
+            message = "OTP resent successfully!" if is_resend else "OTP sent successfully!"
+            return Response({"next": "otp", "message": message})
+        except Exception as e:
+            return Response({"error": "Failed to send OTP."}, status=500)
+    else:
+        return Response({"error": "Invalid credentials."}, status=401)

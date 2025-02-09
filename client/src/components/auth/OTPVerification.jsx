@@ -8,8 +8,57 @@ export default function OTPVerification() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [resendLoading, setResendLoading] = useState(false);
+  const [resendTimer, setResendTimer] = useState(30); // 30 seconds cooldown
+  const [canResend, setCanResend] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
+
+  useEffect(() => {
+    let interval;
+    if (resendTimer > 0 && !canResend) {
+      interval = setInterval(() => {
+        setResendTimer((prev) => prev - 1);
+      }, 1000);
+    } else {
+      setCanResend(true);
+    }
+    return () => clearInterval(interval);
+  }, [resendTimer, canResend]);
+
+  const handleResendOTP = async () => {
+    setResendLoading(true);
+    setError('');
+    
+    try {
+      const username = localStorage.getItem('username');
+      const password = localStorage.getItem('temp_password'); // Temporarily store password for resend
+      
+      const response = await axios.post('/user/login/', {
+        username,
+        password,
+        resend: true
+      });
+      
+      if (response.data.next === 'otp') {
+        setCanResend(false);
+        setResendTimer(30);
+        setError('New OTP has been sent!');
+        setTimeout(() => setError(''), 3000);
+      }
+    } catch (err) {
+      console.error('Resend OTP Error:', err);
+      setError(err.response?.data?.error || 'Failed to resend OTP');
+      if (err.response?.status === 401) {
+        // If credentials are invalid, redirect to login
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      }
+    } finally {
+      setResendLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -18,32 +67,22 @@ export default function OTPVerification() {
 
     try {
       const username = localStorage.getItem('username');
-      console.log('Sending verification request:', {
-        username,
-        otp
-      });
-      
       const response = await axios.post('/user/login/otpverification/', {
         username,
         otp: otp.toString()
       });
       
-      console.log('OTP verification response:', response.data);
-      
       if (response.data.access_token) {
-        // Store tokens
+        localStorage.removeItem('temp_password'); // Clean up stored password
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
         
-        // Set default authorization header
         axios.defaults.headers.common['Authorization'] = `Bearer ${response.data.access_token}`;
         
-        // Update Redux store
         dispatch(verifyOTP({
           token: response.data.access_token
         }));
         
-        // Navigate based on the redirect path from the response
         if (response.data.redirect) {
           window.location.href = response.data.redirect;
         } else {
@@ -52,7 +91,14 @@ export default function OTPVerification() {
       }
     } catch (err) {
       console.error('OTP Verification Error:', err);
-      setError(err.response?.data?.error || 'Invalid OTP');
+      const errorMessage = err.response?.data?.error || 'Invalid OTP';
+      setError(errorMessage);
+      
+      if (errorMessage.includes('expired')) {
+        setTimeout(() => {
+          navigate('/login');
+        }, 2000);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -74,36 +120,47 @@ export default function OTPVerification() {
             Enter OTP
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            We've sent a verification code to the admin
+            Please enter the OTP sent to admin
           </p>
-        </div>
-        
-        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
-          <div>
-            <input
-              type="text"
-              required
-              className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
-              placeholder="Enter OTP"
-              value={otp}
-              onChange={(e) => setOtp(e.target.value)}
-              maxLength="6"
-            />
-          </div>
-
           {error && (
-            <div className="text-red-500 text-sm text-center">
+            <p className={`mt-2 text-center text-sm ${error.includes('sent') ? 'text-green-600' : 'text-red-600'}`}>
               {error}
-            </div>
+            </p>
           )}
-
-          <div>
+        </div>
+        <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
+          <input
+            type="text"
+            value={otp}
+            onChange={(e) => setOtp(e.target.value)}
+            placeholder="Enter OTP"
+            className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
+            required
+          />
+          <div className="flex flex-col space-y-4">
             <button
               type="submit"
               disabled={isLoading}
-              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              className={`group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 ${
+                isLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
             >
               {isLoading ? 'Verifying...' : 'Verify OTP'}
+            </button>
+            <button
+              type="button"
+              onClick={handleResendOTP}
+              disabled={!canResend || resendLoading}
+              className={`text-sm text-indigo-600 hover:text-indigo-500 focus:outline-none ${
+                !canResend || resendLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {resendLoading 
+                ? 'Sending...' 
+                : canResend 
+                  ? 'Resend OTP' 
+                  : `Resend OTP in ${resendTimer}s`
+              }
             </button>
           </div>
         </form>

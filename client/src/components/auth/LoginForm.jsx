@@ -20,12 +20,13 @@ export default function LoginForm() {
       const loginResponse = await axios.post('/user/login/', formData);
       
       if (loginResponse.data.next) {
-        // Store username for OTP verification
         localStorage.setItem('username', formData.username);
+        localStorage.setItem('temp_password', formData.password);
         navigate('/verify-otp');
       }
     } catch (err) {
-      setError(err.response?.data?.error || 'Login failed');
+      console.error('Login Error:', err);
+      setError(err.response?.data?.detail || err.response?.data?.error || 'Invalid credentials');
     } finally {
       setIsLoading(false);
     }

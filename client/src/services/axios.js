@@ -5,8 +5,13 @@ const instance = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
-  withCredentials: true
 });
+
+let sessionTimeoutCallback = null;
+
+export const setSessionTimeoutCallback = (callback) => {
+  sessionTimeoutCallback = callback;
+};
 
 instance.interceptors.request.use(
   (config) => {
@@ -25,8 +30,9 @@ instance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const isAuthRequest = originalRequest.url.includes('/login/') || originalRequest.url.includes('/token/refresh/');
 
-    if (error.response.status === 401 && !originalRequest._retry) {
+    if (error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');
 
@@ -41,8 +47,9 @@ instance.interceptors.response.use(
           return instance(originalRequest);
         }
       } catch (refreshError) {
-        localStorage.clear();
-        window.location.href = '/login';
+        if (sessionTimeoutCallback) {
+          sessionTimeoutCallback();
+        }
       }
     }
 
