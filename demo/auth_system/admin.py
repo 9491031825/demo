@@ -4,12 +4,10 @@ from .models import CustomUser
 
 class CustomUserAdmin(UserAdmin):
     fieldsets = UserAdmin.fieldsets + (
-        ("Additional Info", {"fields": ("phone_number", "verified_email", "verified_phone", "allowed_ips")}),
+        ("Additional Info", {"fields": ("ip_address",)}),  # Only keeping IP address
     )
-    add_fieldsets = UserAdmin.add_fieldsets + (
-        ("Additional Info", {"fields": ("phone_number",)}),
-    )
-    list_display = ("username", "email", "phone_number", "verified_email", "verified_phone")
-    search_fields = ("username", "email", "phone_number")
+    add_fieldsets = UserAdmin.add_fieldsets  
+    list_display = ("username", "ip_address")  # Only displaying username and IP
+    search_fields = ("username",)
 
 admin.site.register(CustomUser, CustomUserAdmin)
