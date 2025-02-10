@@ -1,32 +1,11 @@
-import { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import axios, { setSessionTimeoutCallback } from '../../services/axios';
-import SessionTimeoutModal from './SessionTimeoutModal';
+import { useEffect } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
+import axios from '../../services/axios';
 
-export default function SessionTimeout({ isOpen, onClose }) {
+export default function SessionTimeout() {
   const location = useLocation();
-  const [countdown, setCountdown] = useState(10);
+  const navigate = useNavigate();
   const excludedPaths = ['/login', '/verify-otp'];
-
-  // Start countdown when modal opens
-  useEffect(() => {
-    let timer;
-    if (isOpen) {
-      setCountdown(10); // Reset countdown
-      timer = setInterval(() => {
-        setCountdown((prev) => {
-          if (prev <= 1) {
-            clearInterval(timer);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    }
-    return () => {
-      if (timer) clearInterval(timer);
-    };
-  }, [isOpen]);
 
   // Don't set up inactivity timer on excluded paths
   useEffect(() => {
@@ -38,16 +17,14 @@ export default function SessionTimeout({ isOpen, onClose }) {
     const resetTimer = () => {
       if (inactivityTimer) clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(() => {
-        // Clear credentials and show modal
+        // Clear credentials and redirect
         localStorage.clear();
         delete axios.defaults.headers.common['Authorization'];
-        
-        // Set the callback to show the modal
-        setSessionTimeoutCallback(() => {
-          onClose(); // First close any existing modal
-          setTimeout(() => onClose(true), 0); // Then show the timeout modal
-        });
-      }, 10000); // 300 seconds
+        navigate('/login', { replace: true });
+        setTimeout(() => {
+          alert('Your session has expired due to inactivity. Please login again.');
+        }, 100);
+      }, 300000); // 300 seconds
     };
 
     const events = ['mousedown', 'keydown', 'scroll', 'mousemove', 'touchstart'];
@@ -63,13 +40,7 @@ export default function SessionTimeout({ isOpen, onClose }) {
         document.removeEventListener(event, resetTimer);
       });
     };
-  }, [location.pathname, onClose]);
+  }, [location.pathname, navigate]);
 
-  return (
-    <SessionTimeoutModal 
-      isOpen={isOpen}
-      onClose={onClose}
-      countdown={countdown}
-    />
-  );
+  return null;
 }

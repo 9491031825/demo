@@ -51,9 +51,11 @@ instance.interceptors.response.use(
         localStorage.clear();
         delete instance.defaults.headers.common['Authorization'];
         
-        if (sessionTimeoutCallback) {
-          sessionTimeoutCallback();
-        }
+        // First redirect, then show alert
+        window.location.href = '/login';
+        setTimeout(() => {
+          alert('Your session has expired. Please login again.');
+        }, 100);
       }
     }
 
