@@ -81,6 +81,7 @@ INSTALLED_APPS = [
     'auth_system',
     'corsheaders',
     'import_export',
+    'auditlog',
 ]
 
 

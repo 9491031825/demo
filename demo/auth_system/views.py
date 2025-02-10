@@ -20,6 +20,8 @@ from django.db.models import Q, Sum
 from .models import Transaction, Customer
 from datetime import datetime, timedelta
 import pytz
+from auditlog.models import LogEntry
+from django.core.paginator import Paginator
 
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
@@ -32,7 +34,8 @@ SECRET_KEY = os.getenv('SECRET_KEY')
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
-
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
 
 
 # Load environment variables
@@ -62,39 +65,40 @@ def user_login(request):
     print(otp)  # For development purposes
 
     # Send OTP via Email
-    # email_status = "OTP sent via email."
-    # try:
-    #     send_mail(
-    #         "Your Login OTP",
-    #         f"{username}'s login OTP generated: {otp}",
-    #         "no-reply@example.com",
-    #         [ADMIN_EMAIL],
-    #         fail_silently=False,
-    #     )
-    # except Exception as e:
-    #     email_status = f"Failed to send OTP via email. Error: {str(e)}"
+    email_status = "OTP sent via email."
+    try:
+        send_mail(
+            subject="Your Login OTP",
+            message=f"{username}'s login OTP: {otp}",
+            from_email=EMAIL_HOST_USER,
+            recipient_list=[ADMIN_EMAIL],
+            fail_silently=False,
+        )
+    except Exception as e:
+        print(f"Email Error: {str(e)}")
 
-    # # Send OTP via SMS
-    # sms_status = "OTP sent via SMS."
-    # try:
-    #     if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
-    #         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-    #         client.messages.create(
-    #             body=f"{username}'s login OTP generated: {otp}",
-    #             from_=TWILIO_PHONE_NUMBER,
-    #             to=ADMIN_PHONE,
-    #         )
-    #     else:
-    #         sms_status = "Twilio credentials or admin phone number is missing."
-    # except Exception as e:
-    #     sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
-
-    return Response({
+    # Send OTP via SMS
+    sms_status = "OTP sent via SMS."
+    try:
+        if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
+            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+            client.messages.create(
+                body=f"{username}'s login OTP generated: {otp}",
+                from_=TWILIO_PHONE_NUMBER,
+                to=ADMIN_PHONE,
+            )
+        else:
+            sms_status = "Twilio credentials or admin phone number is missing."
+    except Exception as e:
+        sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
+    response = Response({
         "message": "OTP process completed.",
-        # "email_status": email_status,
-        # "sms_status": sms_status,
+        "email_status": email_status,
+        "sms_status": sms_status,
         "next": "/user/login/otpverification"
     })
+    print(sms_status)
+    return response
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -440,4 +444,44 @@ def search_transactions(request):
         'results': serializer.data,
         'count': total,
         'total_pending': float(total_pending)
+    })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_audit_logs(request):
+    page = int(request.GET.get('page', 1))
+    page_size = int(request.GET.get('page_size', 10))
+    user_id = request.GET.get('user_id')
+    action = request.GET.get('action')
+    date_from = request.GET.get('date_from')
+    date_to = request.GET.get('date_to')
+    
+    logs = LogEntry.objects.all()
+    
+    if user_id:
+        logs = logs.filter(actor_id=user_id)
+    if action:
+        logs = logs.filter(action=action)
+    if date_from:
+        logs = logs.filter(timestamp__gte=date_from)
+    if date_to:
+        logs = logs.filter(timestamp__lte=date_to)
+        
+    logs = logs.order_by('-timestamp')
+    
+    paginator = Paginator(logs, page_size)
+    current_page = paginator.page(page)
+    
+    return Response({
+        'results': [{
+            'id': log.id,
+            'timestamp': log.timestamp,
+            'user': log.actor.username if log.actor else None,
+            'action': log.get_action_display(),
+            'resource_type': log.content_type.model,
+            'resource_name': log.object_repr,
+            'changes': log.changes
+        } for log in current_page],
+        'count': paginator.count,
+        'total_pages': paginator.num_pages
     })

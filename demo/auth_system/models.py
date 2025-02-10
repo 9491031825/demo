@@ -2,13 +2,21 @@ from django.contrib.auth.models import AbstractUser, Group, Permission
 from django.db import models
 from django.conf import settings
 from django.utils import timezone
+import os
+from auditlog.models import AuditlogHistoryField
+from auditlog.registry import auditlog
+
+ADMIN_PHONE = os.getenv('ADMIN_PHONE')
+ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
 
 class CustomUser(AbstractUser):
-    phone_number = models.CharField(max_length=15,  blank=False, null=False)
+    # history = AuditlogHistoryField()
+    phone_number = models.CharField(max_length=15, default=ADMIN_PHONE, blank=False, null=False)
     approved_devices = models.JSONField(default=list, blank=True)  # Optional: Store approved device details
     verified_email = models.BooleanField(default=False)
     verified_phone = models.BooleanField(default=False)
     allowed_ips = models.JSONField(default=list, blank=True)  # Optional: Store allowed IPs
+    email = models.EmailField(default=ADMIN_EMAIL, blank=False, null=False)
 
     # Override groups field with a unique related_name
     groups = models.ManyToManyField(
@@ -29,6 +37,7 @@ class CustomUser(AbstractUser):
     )
 
 class Transaction(models.Model):
+    # history = AuditlogHistoryField()
     customer = models.ForeignKey('Customer', on_delete=models.CASCADE)
     quality_type = models.CharField(max_length=50)
     quantity = models.DecimalField(max_digits=10, decimal_places=2)
@@ -74,6 +83,28 @@ class Transaction(models.Model):
         self.balance = self.total - self.amount_paid
         self.save()
 
+    # def save(self, *args, **kwargs):
+    #     is_new = self._state.adding
+    #     super().save(*args, **kwargs)
+        
+    #     if is_new:
+    #         from auditlog.models import LogEntry
+    #         LogEntry.objects.create(
+    #             content_type_id=Transaction.objects.get_for_model(self).id,
+    #             object_id=self.id,
+    #             object_repr=str(self),
+    #             action=LogEntry.Action.CREATE,
+    #             actor=self.customer.user if self.customer else None,
+    #             changes={
+    #                 'customer': str(self.customer),
+    #                 'quality_type': self.quality_type,
+    #                 'quantity': str(self.quantity),
+    #                 'rate': str(self.rate),
+    #                 'total': str(self.total),
+    #                 'payment_status': self.payment_status
+    #             }
+    #         )
+
     class Meta:
         ordering = ['-created_at']
 
@@ -95,3 +126,8 @@ class Customer(models.Model):
 
     def __str__(self):
         return self.name
+
+# Register models with auditlog
+auditlog.register(CustomUser)
+auditlog.register(Transaction)
+auditlog.register(Customer)
