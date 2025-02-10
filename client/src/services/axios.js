@@ -32,7 +32,7 @@ instance.interceptors.response.use(
     const originalRequest = error.config;
     const isAuthRequest = originalRequest.url.includes('/login/') || originalRequest.url.includes('/token/refresh/');
 
-    if (error.response.status === 401 && !originalRequest._retry && !isAuthRequest) {
+    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');
 
@@ -47,6 +47,10 @@ instance.interceptors.response.use(
           return instance(originalRequest);
         }
       } catch (refreshError) {
+        // Clear tokens on refresh failure
+        localStorage.clear();
+        delete instance.defaults.headers.common['Authorization'];
+        
         if (sessionTimeoutCallback) {
           sessionTimeoutCallback();
         }

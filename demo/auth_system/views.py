@@ -62,32 +62,32 @@ def user_login(request):
     print(otp)  # For development purposes
 
     # Send OTP via Email
-    email_status = "OTP sent via email."
-    try:
-        send_mail(
-            "Your Login OTP",
-            f"{username}'s login OTP generated: {otp}",
-            "no-reply@example.com",
-            [ADMIN_EMAIL],
-            fail_silently=False,
-        )
-    except Exception as e:
-        email_status = f"Failed to send OTP via email. Error: {str(e)}"
+    # email_status = "OTP sent via email."
+    # try:
+    #     send_mail(
+    #         "Your Login OTP",
+    #         f"{username}'s login OTP generated: {otp}",
+    #         "no-reply@example.com",
+    #         [ADMIN_EMAIL],
+    #         fail_silently=False,
+    #     )
+    # except Exception as e:
+    #     email_status = f"Failed to send OTP via email. Error: {str(e)}"
 
-    # Send OTP via SMS
-    sms_status = "OTP sent via SMS."
-    try:
-        if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
-            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-            client.messages.create(
-                body=f"{username}'s login OTP generated: {otp}",
-                from_=TWILIO_PHONE_NUMBER,
-                to=ADMIN_PHONE,
-            )
-        else:
-            sms_status = "Twilio credentials or admin phone number is missing."
-    except Exception as e:
-        sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
+    # # Send OTP via SMS
+    # sms_status = "OTP sent via SMS."
+    # try:
+    #     if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
+    #         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    #         client.messages.create(
+    #             body=f"{username}'s login OTP generated: {otp}",
+    #             from_=TWILIO_PHONE_NUMBER,
+    #             to=ADMIN_PHONE,
+    #         )
+    #     else:
+    #         sms_status = "Twilio credentials or admin phone number is missing."
+    # except Exception as e:
+    #     sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
 
     return Response({
         "message": "OTP process completed.",
@@ -112,7 +112,7 @@ def verify_user(request):
 
     # Check if OTP has expired (5 minutes)
     time_diff = datetime.now(pytz.UTC) - stored_otp_data['timestamp']
-    if time_diff > timedelta(seconds=15):
+    if time_diff > timedelta(minutes=2):
         # Remove expired OTP
         del otp_storage[username]
         return Response({"error": "OTP has expired. Please request a new one."}, status=400)

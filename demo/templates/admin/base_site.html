@@ -1,0 +1,36 @@
+{% extends "admin/base_site.html" %}
+{% load static %}
+
+{% block extrahead %}
+{{ block.super }}
+<script>
+    // Calculate timeout in milliseconds (10 seconds)
+    const timeout = {{ ADMIN_SESSION_TIMEOUT }} * 1000;
+    let timeoutWarning;
+    let timeoutRedirect;
+
+    function resetTimers() {
+        clearTimeout(timeoutWarning);
+        clearTimeout(timeoutRedirect);
+
+        // Show warning 5 seconds before timeout
+        timeoutWarning = setTimeout(() => {
+            alert('Your session will expire in 5 seconds. Please save your work.');
+        }, 5000); // Warning at 5 seconds
+
+        // Redirect to login page on timeout
+        timeoutRedirect = setTimeout(() => {
+            window.location.href = '{% url "admin:logout" %}';
+        }, 10000); // Timeout at 10 seconds
+    }
+
+    // Reset timers on user activity
+    document.addEventListener('mousemove', resetTimers);
+    document.addEventListener('keypress', resetTimers);
+    document.addEventListener('click', resetTimers);
+    document.addEventListener('scroll', resetTimers);
+
+    // Initial setup
+    resetTimers();
+</script>
+{% endblock %} 

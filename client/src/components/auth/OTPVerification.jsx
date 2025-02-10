@@ -9,30 +9,36 @@ export default function OTPVerification() {
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [resendLoading, setResendLoading] = useState(false);
-  const [resendTimer, setResendTimer] = useState(30); // 30 seconds cooldown
+  const [resendTimer, setResendTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
   useEffect(() => {
-    let interval;
-    if (resendTimer > 0 && !canResend) {
-      interval = setInterval(() => {
-        setResendTimer((prev) => prev - 1);
-      }, 1000);
-    } else {
-      setCanResend(true);
-    }
+    const interval = setInterval(() => {
+      setResendTimer((prevTimer) => {
+        if (prevTimer <= 1) {
+          clearInterval(interval);
+          setCanResend(true);
+          return 0;
+        }
+        return prevTimer - 1;
+      });
+    }, 1000);
+
+    // Cleanup interval
     return () => clearInterval(interval);
-  }, [resendTimer, canResend]);
+  }, [resendTimer]); // This will re-run when resendTimer is reset
 
   const handleResendOTP = async () => {
+    if (!canResend) return;
+    
     setResendLoading(true);
     setError('');
     
     try {
       const username = localStorage.getItem('username');
-      const password = localStorage.getItem('temp_password'); // Temporarily store password for resend
+      const password = localStorage.getItem('temp_password');
       
       const response = await axios.post('/user/login/', {
         username,
@@ -40,21 +46,17 @@ export default function OTPVerification() {
         resend: true
       });
       
-      if (response.data.next === 'otp') {
-        setCanResend(false);
-        setResendTimer(30);
-        setError('New OTP has been sent!');
-        setTimeout(() => setError(''), 3000);
-      }
+      // Reset timer and canResend after successful resend
+      setResendTimer(30);
+      setCanResend(false);
+      setError('OTP has been resent successfully');
+      
     } catch (err) {
       console.error('Resend OTP Error:', err);
-      setError(err.response?.data?.error || 'Failed to resend OTP');
-      if (err.response?.status === 401) {
-        // If credentials are invalid, redirect to login
-        setTimeout(() => {
-          navigate('/login');
-        }, 2000);
-      }
+      setError('Failed to resend OTP');
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
     } finally {
       setResendLoading(false);
     }
@@ -157,9 +159,9 @@ export default function OTPVerification() {
             >
               {resendLoading 
                 ? 'Sending...' 
-                : canResend 
-                  ? 'Resend OTP' 
-                  : `Resend OTP in ${resendTimer}s`
+                : resendTimer > 0 
+                  ? `Resend OTP in ${resendTimer}s`
+                  : 'Resend OTP'
               }
             </button>
           </div>

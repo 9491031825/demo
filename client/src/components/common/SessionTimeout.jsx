@@ -1,45 +1,60 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useLocation } from 'react-router-dom';
+import axios, { setSessionTimeoutCallback } from '../../services/axios';
+import SessionTimeoutModal from './SessionTimeoutModal';
 
 export default function SessionTimeout({ isOpen, onClose }) {
-  const navigate = useNavigate();
+  const location = useLocation();
   const [countdown, setCountdown] = useState(10);
+  const excludedPaths = ['/login', '/verify-otp'];
 
+  // Start countdown when modal opens
   useEffect(() => {
     let timer;
     if (isOpen) {
+      setCountdown(10); // Reset countdown
       timer = setInterval(() => {
         setCountdown((prev) => {
           if (prev <= 1) {
             clearInterval(timer);
-            handleLogout();
             return 0;
           }
           return prev - 1;
         });
       }, 1000);
     }
-    return () => clearInterval(timer);
+    return () => {
+      if (timer) clearInterval(timer);
+    };
   }, [isOpen]);
 
+  // Don't set up inactivity timer on excluded paths
   useEffect(() => {
+    if (excludedPaths.includes(location.pathname)) {
+      return;
+    }
+
     let inactivityTimer;
-    
     const resetTimer = () => {
       if (inactivityTimer) clearTimeout(inactivityTimer);
       inactivityTimer = setTimeout(() => {
-        handleLogout();
-      }, 30000); // 30 seconds
+        // Clear credentials and show modal
+        localStorage.clear();
+        delete axios.defaults.headers.common['Authorization'];
+        
+        // Set the callback to show the modal
+        setSessionTimeoutCallback(() => {
+          onClose(); // First close any existing modal
+          setTimeout(() => onClose(true), 0); // Then show the timeout modal
+        });
+      }, 10000); // 300 seconds
     };
 
-    // Events to track user activity
     const events = ['mousedown', 'keydown', 'scroll', 'mousemove', 'touchstart'];
-    
     events.forEach(event => {
       document.addEventListener(event, resetTimer);
     });
 
-    // Initial timer setup
     resetTimer();
 
     return () => {
@@ -48,35 +63,13 @@ export default function SessionTimeout({ isOpen, onClose }) {
         document.removeEventListener(event, resetTimer);
       });
     };
-  }, []);
-
-  const handleLogout = () => {
-    localStorage.clear();
-    navigate('/login');
-  };
-
-  if (!isOpen) return null;
+  }, [location.pathname, onClose]);
 
   return (
-    <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
-      <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
-        <div className="mt-3 text-center">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">Session Expired</h3>
-          <div className="mt-2 px-7 py-3">
-            <p className="text-sm text-gray-500">
-              Your session has expired due to inactivity. You will be redirected to login page in {countdown} seconds.
-            </p>
-          </div>
-          <div className="items-center px-4 py-3">
-            <button
-              onClick={handleLogout}
-              className="px-4 py-2 bg-red-600 text-white text-base font-medium rounded-md shadow-sm hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-red-500"
-            >
-              Login Now
-            </button>
-          </div>
-        </div>
-      </div>
-    </div>
+    <SessionTimeoutModal 
+      isOpen={isOpen}
+      onClose={onClose}
+      countdown={countdown}
+    />
   );
 }
