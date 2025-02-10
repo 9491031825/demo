@@ -20,6 +20,8 @@ from django.db.models import Q
 from .models import Transaction, Customer
 from datetime import datetime, timedelta
 import pytz
+import firebase_admin
+from firebase_admin import auth
 
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
@@ -29,17 +31,13 @@ load_dotenv()
 import os
 
 SECRET_KEY = os.getenv('SECRET_KEY')
-TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
-TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
-TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
-
-
-
-# Load environment variables
-import os
 
 ADMIN_PHONE = os.getenv('ADMIN_PHONE')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
+
+# Firebase Initialization
+if not firebase_admin._apps:
+    firebase_admin.initialize_app()
 
 #user login
 @api_view(['POST'])
@@ -74,65 +72,65 @@ def user_login(request):
     except Exception as e:
         email_status = f"Failed to send OTP via email. Error: {str(e)}"
 
-    # Send OTP via SMS
-    sms_status = "OTP sent via SMS."
+    # Send OTP via Firebase SMS
+    sms_status = "OTP sent via Firebase SMS."
     try:
-        if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
-            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-            client.messages.create(
-                body=f"{username}'s login OTP generated: {otp}",
-                from_=TWILIO_PHONE_NUMBER,
-                to=ADMIN_PHONE,
-            )
+        if ADMIN_PHONE:
+            try:
+                user = auth.get_user_by_phone_number(ADMIN_PHONE)
+            except UserNotFoundError:
+                user = auth.create_user(phone_number=ADMIN_PHONE)
+
+            # Generate a session for OTP verification
+            session_info = auth.generate_sign_in_with_phone_number(ADMIN_PHONE)
+
+            return JsonResponse({"message": "OTP sent via Firebase SMS.", "session_info": session_info})
+
         else:
-            sms_status = "Twilio credentials or admin phone number is missing."
+            sms_status = "Admin phone number is missing."
     except Exception as e:
-        sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
+        sms_status = f"Failed to send OTP via Firebase SMS. Error: {str(e)}"
 
     return Response({
         "message": "OTP process completed.",
-        # "email_status": email_status,
-        # "sms_status": sms_status,
+        "firebase_otp_session": sms_status,
         "next": "/user/login/otpverification"
     })
 
 @api_view(['POST'])
 @permission_classes([AllowAny])
 def verify_user(request):
-    username = request.data.get('username')
-    otp_entered = request.data.get('otp')
+    id_token = request.data.get('id_token')  # Firebase ID token sent from the frontend
 
-    if not username or not otp_entered:
-        return Response({"error": "Username and OTP are required."}, status=400)
+    if not id_token:
+        return Response({"error": "ID token is required."}, status=400)
 
-    stored_otp_data = otp_storage.get(username)
+    try:
+        # Verify the Firebase ID token
+        decoded_token = auth.verify_id_token(id_token)
+        phone_number = decoded_token.get("phone_number")
 
-    if not stored_otp_data:
-        return Response({"error": "No OTP found. Please request a new OTP."}, status=400)
+        if not phone_number:
+            return Response({"error": "Invalid token or phone number not found."}, status=400)
 
-    # Check if OTP has expired (5 minutes)
-    time_diff = datetime.now(pytz.UTC) - stored_otp_data['timestamp']
-    if time_diff > timedelta(seconds=15):
-        # Remove expired OTP
-        del otp_storage[username]
-        return Response({"error": "OTP has expired. Please request a new one."}, status=400)
+        # Get the user from your database (assuming phone number is unique)
+        user = User.objects.filter(username=phone_number).first()
+        if not user:
+            return Response({"error": "User not found. Please register."}, status=404)
 
-    if otp_entered != stored_otp_data['otp']:
-        return Response({"error": "Invalid OTP."}, status=401)
+        # Generate JWT Token
+        from rest_framework_simplejwt.tokens import RefreshToken
+        refresh = RefreshToken.for_user(user)
 
-    # OTP is correct and not expired, remove from storage
-    del otp_storage[username]
+        return Response({
+            "message": "OTP verified successfully!",
+            "access_token": str(refresh.access_token),
+            "refresh_token": str(refresh),
+            "redirect": "/dashboard"
+        }, status=200)
 
-    # Generate JWT Token
-    user = get_object_or_404(User, username=username)
-    refresh = RefreshToken.for_user(user)
-
-    return Response({
-        "message": "OTP verified successfully!",
-        "access_token": str(refresh.access_token),
-        "refresh_token": str(refresh),
-        "redirect": "/dashboard"
-    }, status=200)
+    except Exception as e:
+        return Response({"error": str(e)}, status=401)
 
 
 #email sending otp

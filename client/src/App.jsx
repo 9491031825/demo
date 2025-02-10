@@ -5,6 +5,7 @@ import LoginForm from './components/auth/LoginForm';
 import OTPVerification from './components/auth/OTPVerification';
 import SessionTimeout from './components/common/SessionTimeout';
 import { setSessionTimeoutCallback } from './services/axios';
+import OTPLogin from "./components/auth/OTPLogin";
 
 // Wrapper component to handle session timeout visibility
 function SessionTimeoutWrapper({ children }) {

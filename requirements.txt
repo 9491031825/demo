@@ -26,3 +26,6 @@ coverage>=7.3.0
 # Production
 gunicorn>=21.2.0
 whitenoise>=6.5.0
+
+pytz
+django-import-export
