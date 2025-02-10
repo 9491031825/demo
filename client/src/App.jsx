@@ -4,6 +4,7 @@ import Dashboard from './components/dashboard/Dashboard';
 import LoginForm from './components/auth/LoginForm';
 import OTPVerification from './components/auth/OTPVerification';
 import SessionTimeout from './components/common/SessionTimeout';
+import AllTransactionsHistory from './components/dashboard/AllTransactionsHistory';
 
 function App() {
   const AdminRedirect = () => {
@@ -22,6 +23,7 @@ function App() {
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin" element={<AdminRedirect />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
+        <Route path="/transactions/history" element={<AllTransactionsHistory />} />
       </Routes>
     </Router>
   );

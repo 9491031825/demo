@@ -28,7 +28,7 @@ export const customerAPI = {
 
 export const transactionAPI = {
   create: async (transactionData) => {
-    const response = await axios.post('/api/transactions', transactionData);
+    const response = await axios.post('/api/transactions/create/', transactionData);
     return response.data;
   },
 
@@ -38,8 +38,15 @@ export const transactionAPI = {
   },
 
   getDetails: async (customerId, page = 1, pageSize = 10) => {
-    const response = await axios.get(`/api/customers/${customerId}/transactions`, {
+    const response = await axios.get(`/api/customers/${customerId}/transactions/`, {
       params: { page, page_size: pageSize }
+    });
+    return response.data;
+  },
+
+  search: async (query = '', page = 1, pageSize = 10) => {
+    const response = await axios.get('/api/transactions/search/', {
+      params: { query, page, page_size: pageSize }
     });
     return response.data;
   }

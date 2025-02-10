@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import axios from '../../services/axios';
 
 export default function NewCustomerForm() {
@@ -13,6 +13,7 @@ export default function NewCustomerForm() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState(false);
+  const [duplicateWarning, setDuplicateWarning] = useState(null);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -38,10 +39,23 @@ export default function NewCustomerForm() {
         gst_number: '',
         company_name: ''
       });
+      setDuplicateWarning(null);
       
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
-      setError(err.response?.data?.error || 'Failed to create customer');
+      if (err.response?.data?.duplicate_fields) {
+        const duplicateData = err.response.data;
+        const duplicateFields = Object.keys(duplicateData.duplicate_fields)
+          .map(field => field.replace('_', ' '))
+          .join(' and ');
+        
+        setDuplicateWarning({
+          message: `A customer with the same ${duplicateFields} already exists:`,
+          customer: duplicateData.existing_customer
+        });
+      } else {
+        setError(err.response?.data?.error || 'Failed to create customer');
+      }
     } finally {
       setLoading(false);
     }
@@ -59,6 +73,20 @@ export default function NewCustomerForm() {
         {error && (
           <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded">
             {error}
+          </div>
+        )}
+
+        {duplicateWarning && (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded">
+            <p className="font-medium">{duplicateWarning.message}</p>
+            <div className="mt-2 text-sm">
+              <p>Name: {duplicateWarning.customer.name}</p>
+              <p>Email: {duplicateWarning.customer.email}</p>
+              <p>Phone: {duplicateWarning.customer.phone_number}</p>
+              {duplicateWarning.customer.company_name && (
+                <p>Company: {duplicateWarning.customer.company_name}</p>
+              )}
+            </div>
           </div>
         )}
 

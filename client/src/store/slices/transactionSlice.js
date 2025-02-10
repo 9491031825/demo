@@ -1,27 +1,39 @@
 import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
 import { transactionAPI } from '../../services/api';
+import axiosInstance from '../../services/axios';
 
 export const createTransaction = createAsyncThunk(
   'transactions/create',
   async (transactionData, { rejectWithValue }) => {
     try {
-      const data = await transactionAPI.create(transactionData);
-      return data;
+      console.log('Making API call with:', transactionData);
+      const response = await axiosInstance.post('/api/transactions/create/', transactionData);
+      console.log('API Response:', response);
+      return response.data;
     } catch (error) {
-      return rejectWithValue(error.response.data);
+      console.error('API Error:', error.response || error);
+      return rejectWithValue(
+        error.response?.data || { 
+          error: 'Network error occurred while saving transaction'
+        }
+      );
     }
+  }
+);
+
+export const searchTransactions = createAsyncThunk(
+  'transactions/search',
+  async ({ query = '', page = 1, pageSize = 10 }) => {
+    const response = await transactionAPI.search(query, page, pageSize);
+    return response;
   }
 );
 
 export const fetchTransactions = createAsyncThunk(
   'transactions/fetch',
-  async ({ customerId, page, pageSize }, { rejectWithValue }) => {
-    try {
-      const data = await transactionAPI.getDetails(customerId, page, pageSize);
-      return data;
-    } catch (error) {
-      return rejectWithValue(error.response.data);
-    }
+  async ({ customerId, page = 1, pageSize = 10 }) => {
+    const response = await transactionAPI.getDetails(customerId, page, pageSize);
+    return response;
   }
 );
 
@@ -55,15 +67,14 @@ const transactionSlice = createSlice({
     builder
       .addCase(createTransaction.pending, (state) => {
         state.loading = true;
-        state.error = null;
       })
       .addCase(createTransaction.fulfilled, (state, action) => {
         state.loading = false;
-        state.transactions.push(action.payload);
+        state.transactions = [...state.transactions, ...action.payload];
       })
       .addCase(createTransaction.rejected, (state, action) => {
         state.loading = false;
-        state.error = action.payload?.error || 'Failed to create transaction';
+        state.error = action.error.message;
       })
       .addCase(fetchTransactions.pending, (state) => {
         state.loading = true;

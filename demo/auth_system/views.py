@@ -16,7 +16,7 @@ from twilio.twiml.messaging_response import MessagingResponse
 import json
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
-from django.db.models import Q
+from django.db.models import Q, Sum
 from .models import Transaction, Customer
 from datetime import datetime, timedelta
 import pytz
@@ -221,8 +221,10 @@ def search_customers(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
-def get_transactions(request):
-    customer_id = request.GET.get('customer_id')
+def get_transactions(request, customer_id):
+    # Verify the customer belongs to the current user
+    customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+    
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 10))
     
@@ -236,14 +238,52 @@ def get_transactions(request):
     total = Transaction.objects.filter(customer_id=customer_id).count()
     
     serializer = TransactionSerializer(transactions, many=True)
+    
+    # Calculate total pending amount for this customer
+    total_pending = Transaction.objects.filter(
+        customer_id=customer_id,
+        payment_status__in=['pending', 'partial']
+    ).aggregate(
+        total_pending=Sum('balance')
+    )['total_pending'] or 0
+    
     return Response({
         'results': serializer.data,
-        'count': total
+        'count': total,
+        'customer_name': customer.name,
+        'total_pending': float(total_pending)
     })
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_customer(request):
+    email = request.data.get('email')
+    phone_number = request.data.get('phone_number')
+    
+    duplicate_fields = {}
+    
+    if email:
+        existing_email = Customer.objects.filter(email=email).first()
+        if existing_email:
+            duplicate_fields['email'] = True
+    
+    if phone_number:
+        existing_phone = Customer.objects.filter(phone_number=phone_number).first()
+        if existing_phone:
+            duplicate_fields['phone_number'] = True
+    
+    if duplicate_fields:
+        # Get the first matching customer to show as an example
+        existing_customer = Customer.objects.filter(
+            Q(email=email) if email else Q(phone_number=phone_number)
+        ).first()
+        
+        return Response({
+            "error": "Customer already exists",
+            "duplicate_fields": duplicate_fields,
+            "existing_customer": CustomerSerializer(existing_customer).data
+        }, status=400)
+    
     serializer = CustomerSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save(user=request.user)
@@ -295,3 +335,109 @@ def login_user(request):
             return Response({"error": "Failed to send OTP."}, status=500)
     else:
         return Response({"error": "Invalid credentials."}, status=401)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_transaction(request):
+    try:
+        data = request.data
+        customer_id = data.get('customer_id')
+        
+        # Verify the customer belongs to the current user
+        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        
+        transactions_data = data.get('transactions', [])
+        payment_details = data.get('payment_details', {})
+        
+        if not transactions_data:
+            return Response({
+                'error': 'Missing required fields: transactions'
+            }, status=400)
+
+        created_transactions = []
+        current_datetime = datetime.now()
+        payment_amount = float(payment_details.get('payment_amount', 0))
+        
+        total_transaction_amount = sum(float(t['total']) for t in transactions_data)
+        
+        for transaction in transactions_data:
+            transaction_total = float(transaction['total'])
+            proportional_payment = (transaction_total / total_transaction_amount) * payment_amount if payment_amount > 0 else 0
+            
+            transaction_data = {
+                'customer': customer_id,  # Changed from customer_id to customer
+                'quality_type': transaction['quality_type'],
+                'quantity': transaction['quantity'],
+                'rate': transaction['rate'],
+                'total': transaction_total,
+                'amount_paid': proportional_payment,
+                'balance': transaction_total - proportional_payment,
+                'payment_type': payment_details.get('payment_type', 'cash'),
+                'transaction_id': payment_details.get('transaction_id', ''),
+                'notes': payment_details.get('notes', ''),
+                'transaction_date': current_datetime.date(),
+                'transaction_time': current_datetime.time()
+            }
+            
+            serializer = TransactionSerializer(
+                data=transaction_data,
+                context={'customer_id': customer_id}
+            )
+            
+            if serializer.is_valid():
+                transaction = serializer.save()
+                transaction.update_payment_status()
+                created_transactions.append(serializer.data)
+            else:
+                print("Serializer errors:", serializer.errors)
+                return Response(serializer.errors, status=400)
+        
+        return Response(created_transactions, status=201)
+    except Exception as e:
+        print(f"Error creating transaction: {str(e)}")
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def search_transactions(request):
+    query = request.GET.get('query', '')
+    page = int(request.GET.get('page', 1))
+    page_size = int(request.GET.get('page_size', 10))
+    
+    start = (page - 1) * page_size
+    end = start + page_size
+    
+    # Filter transactions by the current user's customers
+    user_customers = Customer.objects.filter(user=request.user).values_list('id', flat=True)
+    
+    transactions = Transaction.objects.filter(
+        customer_id__in=user_customers
+    ).filter(
+        Q(customer__name__icontains=query) |
+        Q(quality_type__icontains=query) |
+        Q(payment_status__icontains=query)
+    ).select_related('customer').order_by('-created_at')[start:end]
+    
+    total = Transaction.objects.filter(
+        customer_id__in=user_customers
+    ).filter(
+        Q(customer__name__icontains=query) |
+        Q(quality_type__icontains=query) |
+        Q(payment_status__icontains=query)
+    ).count()
+    
+    serializer = TransactionSerializer(transactions, many=True)
+    
+    # Calculate total pending amount
+    total_pending = Transaction.objects.filter(
+        customer_id__in=user_customers,
+        payment_status__in=['pending', 'partial']
+    ).aggregate(
+        total_pending=Sum('balance')
+    )['total_pending'] or 0
+    
+    return Response({
+        'results': serializer.data,
+        'count': total,
+        'total_pending': float(total_pending)
+    })

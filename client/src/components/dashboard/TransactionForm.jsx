@@ -1,12 +1,13 @@
 import { useState } from 'react';
-import axios from '../../services/axios';
+import { useDispatch } from 'react-redux';
+import { createTransaction } from '../../store/slices/transactionSlice';
+import { toast } from 'react-toastify';
 
 export default function TransactionForm({ customer, onBack }) {
   const [transactions, setTransactions] = useState([{
     quality_type: '',
     quantity: '',
     rate: '',
-    discount: '0',
     total: '0'
   }]);
   const [paymentDetails, setPaymentDetails] = useState({
@@ -15,14 +16,18 @@ export default function TransactionForm({ customer, onBack }) {
     transaction_id: '',
     notes: ''
   });
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const qualityTypes = ['Type 1', 'Type 2', 'Type 3']; // This could be fetched from API
 
   const calculateRowTotal = (transaction) => {
     const quantity = parseFloat(transaction.quantity) || 0;
     const rate = parseFloat(transaction.rate) || 0;
-    const discount = parseFloat(transaction.discount) || 0;
-    return (quantity * rate * (100 - discount) / 100).toFixed(2);
+    return (quantity * rate).toFixed(2);
+  };
+
+  const calculateGrandTotal = () => {
+    return transactions.reduce((sum, t) => sum + parseFloat(t.total || 0), 0);
   };
 
   const addNewRow = () => {
@@ -30,7 +35,6 @@ export default function TransactionForm({ customer, onBack }) {
       quality_type: '',
       quantity: '',
       rate: '',
-      discount: '0',
       total: '0'
     }]);
   };
@@ -41,33 +45,70 @@ export default function TransactionForm({ customer, onBack }) {
       ...newTransactions[index],
       [field]: value
     };
-    newTransactions[index].total = calculateRowTotal(newTransactions[index]);
+    if (field === 'quantity' || field === 'rate') {
+      newTransactions[index].total = calculateRowTotal(newTransactions[index]);
+    }
     setTransactions(newTransactions);
   };
 
+  const dispatch = useDispatch();
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setIsSubmitting(true);
+
+    // Basic validation
+    if (transactions.some(t => !t.quality_type || !t.quantity || !t.rate)) {
+        toast.error('Please fill in all transaction fields');
+        setIsSubmitting(false);
+        return;
+    }
+
     try {
-      await axios.post('/api/transactions', {
-        customer_id: customer.id,
-        transactions,
-        payment_details: paymentDetails
-      });
-      onBack();
+        const validTransactions = transactions.filter(t => t.quality_type && t.quantity && t.rate).map(t => ({
+            quality_type: t.quality_type,
+            quantity: parseFloat(t.quantity),
+            rate: parseFloat(t.rate),
+            total: parseFloat(t.total)
+        }));
+
+        const validPaymentDetails = {
+            payment_type: paymentDetails.payment_type,
+            payment_amount: parseFloat(paymentDetails.payment_amount) || 0,
+            transaction_id: paymentDetails.transaction_id,
+            notes: paymentDetails.notes
+        };
+
+        const payload = {
+            customer_id: customer.id,
+            transactions: validTransactions,
+            payment_details: validPaymentDetails
+        };
+
+        console.log('Submitting payload:', payload);
+
+        const result = await dispatch(createTransaction(payload)).unwrap();
+        console.log('Transaction result:', result);
+        
+        if (result) {
+            toast.success('Transaction saved successfully!');
+            onBack();
+        }
     } catch (error) {
-      console.error('Failed to save transaction:', error);
+        console.error('Transaction error:', error);
+        toast.error(error?.message || 'Failed to save transaction. Please try again.');
+    } finally {
+        setIsSubmitting(false);
     }
   };
 
-  const grandTotal = transactions.reduce((sum, t) => sum + parseFloat(t.total || 0), 0);
+  const grandTotal = calculateGrandTotal();
+  const remainingBalance = grandTotal - parseFloat(paymentDetails.payment_amount || 0);
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <button
-          onClick={onBack}
-          className="text-indigo-600 hover:text-indigo-900"
-        >
+        <button onClick={onBack} className="text-indigo-600 hover:text-indigo-900">
           ← Back to Search
         </button>
         <h2 className="text-xl font-semibold text-gray-900">
@@ -78,11 +119,12 @@ export default function TransactionForm({ customer, onBack }) {
       <form onSubmit={handleSubmit} className="space-y-6">
         {/* Transaction Rows */}
         {transactions.map((transaction, index) => (
-          <div key={index} className="grid grid-cols-5 gap-4">
+          <div key={index} className="grid grid-cols-4 gap-4">
             <select
               value={transaction.quality_type}
               onChange={(e) => updateTransaction(index, 'quality_type', e.target.value)}
               className="rounded-md border-gray-300"
+              required
             >
               <option value="">Select Type</option>
               {qualityTypes.map((type) => (
@@ -96,6 +138,8 @@ export default function TransactionForm({ customer, onBack }) {
               onChange={(e) => updateTransaction(index, 'quantity', e.target.value)}
               placeholder="Quantity (kg)"
               className="rounded-md border-gray-300"
+              required
+              min="0"
             />
             
             <input
@@ -104,14 +148,8 @@ export default function TransactionForm({ customer, onBack }) {
               onChange={(e) => updateTransaction(index, 'rate', e.target.value)}
               placeholder="Rate"
               className="rounded-md border-gray-300"
-            />
-            
-            <input
-              type="number"
-              value={transaction.discount}
-              onChange={(e) => updateTransaction(index, 'discount', e.target.value)}
-              placeholder="Discount %"
-              className="rounded-md border-gray-300"
+              required
+              min="0"
             />
             
             <div className="flex items-center justify-between">
@@ -136,6 +174,7 @@ export default function TransactionForm({ customer, onBack }) {
               value={paymentDetails.payment_type}
               onChange={(e) => setPaymentDetails({...paymentDetails, payment_type: e.target.value})}
               className="rounded-md border-gray-300"
+              required
             >
               <option value="cash">Cash</option>
               <option value="bank">Bank Transfer</option>
@@ -148,6 +187,8 @@ export default function TransactionForm({ customer, onBack }) {
               onChange={(e) => setPaymentDetails({...paymentDetails, payment_amount: e.target.value})}
               placeholder="Payment Amount"
               className="rounded-md border-gray-300"
+              min="0"
+              max={grandTotal}
             />
             
             {paymentDetails.payment_type !== 'cash' && (
@@ -157,6 +198,7 @@ export default function TransactionForm({ customer, onBack }) {
                 onChange={(e) => setPaymentDetails({...paymentDetails, transaction_id: e.target.value})}
                 placeholder="Transaction ID"
                 className="rounded-md border-gray-300"
+                required={paymentDetails.payment_type !== 'cash'}
               />
             )}
             
@@ -171,14 +213,26 @@ export default function TransactionForm({ customer, onBack }) {
         </div>
 
         <div className="flex justify-between items-center border-t pt-4">
-          <div className="text-xl font-semibold">
-            Grand Total: ₹{grandTotal.toFixed(2)}
+          <div className="space-y-2">
+            <div className="text-xl font-semibold">
+              Grand Total: ₹{grandTotal.toFixed(2)}
+            </div>
+            <div className={`text-lg ${remainingBalance > 0 ? 'text-yellow-600' : remainingBalance < 0 ? 'text-red-600' : 'text-green-600'}`}>
+              {remainingBalance > 0 ? `Remaining Balance: ₹${remainingBalance.toFixed(2)}` :
+               remainingBalance < 0 ? `Overpaid: ₹${Math.abs(remainingBalance).toFixed(2)}` :
+               'Fully Paid'}
+            </div>
           </div>
           <button
             type="submit"
-            className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700"
+            disabled={isSubmitting}
+            className={`${
+              isSubmitting 
+                ? 'bg-gray-400 cursor-not-allowed' 
+                : 'bg-indigo-600 hover:bg-indigo-700'
+            } text-white px-4 py-2 rounded-md transition-colors`}
           >
-            Save Transaction
+            {isSubmitting ? 'Saving...' : 'Save Transaction'}
           </button>
         </div>
       </form>

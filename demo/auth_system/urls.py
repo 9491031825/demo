@@ -2,7 +2,7 @@ from django.urls import path
 from .views import (
     user_login, verify_user, home_page, twilio_incoming, 
     twilio_status, verify_token, search_customers, create_customer,
-    get_transactions
+    get_transactions, search_transactions, create_transaction
 )
 
 urlpatterns = [
@@ -15,4 +15,6 @@ urlpatterns = [
     path('api/customers/search/', search_customers, name='search_customers'),
     path('api/customers/create/', create_customer, name='create_customer'),
     path('api/customers/<int:customer_id>/transactions/', get_transactions, name='get_transactions'),
+    path('api/transactions/search/', search_transactions, name='search_transactions'),
+    path('api/transactions/create/', create_transaction, name='create_transaction'),
 ]
