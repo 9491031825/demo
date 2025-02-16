@@ -5,6 +5,8 @@ import LoginForm from './components/auth/LoginForm';
 import OTPVerification from './components/auth/OTPVerification';
 import SessionTimeout from './components/common/SessionTimeout';
 import AllTransactionsHistory from './components/dashboard/AllTransactionsHistory';
+import StockTransactionForm from './components/dashboard/StockTransactionForm';
+import PaymentTransactionForm from './components/dashboard/PaymentTransactionForm';
 
 function App() {
   const AdminRedirect = () => {
@@ -22,8 +24,10 @@ function App() {
         <Route path="/verify-otp" element={<OTPVerification />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin" element={<AdminRedirect />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
         <Route path="/transactions/history" element={<AllTransactionsHistory />} />
+        <Route path="/transactions/stock/:customerId" element={<StockTransactionForm />} />
+        <Route path="/transactions/payment/:customerId" element={<PaymentTransactionForm />} />
+        <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>
   );

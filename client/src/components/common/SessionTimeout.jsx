@@ -23,8 +23,8 @@ export default function SessionTimeout() {
         navigate('/login', { replace: true });
         setTimeout(() => {
           alert('Your session has expired due to inactivity. Please login again.');
-        }, 100);
-      }, 300000); // 300 seconds
+        }, 300);
+      }, 3000000); // 300 seconds
     };
 
     const events = ['mousedown', 'keydown', 'scroll', 'mousemove', 'touchstart'];

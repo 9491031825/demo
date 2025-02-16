@@ -5,6 +5,8 @@ from django.utils import timezone
 import os
 from auditlog.models import AuditlogHistoryField
 from auditlog.registry import auditlog
+from django.core.exceptions import ValidationError
+from django.db import transaction
 
 ADMIN_PHONE = os.getenv('ADMIN_PHONE')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
@@ -37,14 +39,31 @@ class CustomUser(AbstractUser):
     )
 
 class Transaction(models.Model):
-    # history = AuditlogHistoryField()
+    TRANSACTION_TYPES = [
+        ('stock', 'Stock Transaction'),
+        ('payment', 'Payment Transaction')
+    ]
+    
+    PAYMENT_STATUS_CHOICES = [
+        ('pending', 'Pending'),
+        ('partial', 'Partially Paid'),
+        ('paid', 'Fully Paid')
+    ]
+    
     customer = models.ForeignKey('Customer', on_delete=models.CASCADE)
-    quality_type = models.CharField(max_length=50)
-    quantity = models.DecimalField(max_digits=10, decimal_places=2)
-    rate = models.DecimalField(max_digits=10, decimal_places=2)
-    total = models.DecimalField(max_digits=10, decimal_places=2)
-    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
-    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    transaction_type = models.CharField(max_length=10, choices=TRANSACTION_TYPES)
+    payment_status = models.CharField(
+        max_length=10, 
+        choices=PAYMENT_STATUS_CHOICES,
+        default='pending'
+    )
+    
+    # Stock related fields (nullable for payment transactions)
+    quality_type = models.CharField(max_length=50, null=True, blank=True)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    rate = models.DecimalField(max_digits=10, decimal_places=2, null=True, blank=True)
+    
+    # Payment related fields
     payment_type = models.CharField(
         max_length=20,
         choices=[
@@ -52,58 +71,87 @@ class Transaction(models.Model):
             ('bank', 'Bank Transfer'),
             ('upi', 'UPI')
         ],
-        default='cash'
+        null=True,
+        blank=True
     )
+    
+    # Common fields
+    total = models.DecimalField(max_digits=10, decimal_places=2)
+    amount_paid = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    running_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    
     transaction_id = models.CharField(max_length=100, blank=True, null=True)
-    notes = models.TextField(blank=True, null=True)
-    payment_status = models.CharField(
-        max_length=20,
-        choices=[
-            ('pending', 'Pending'),
-            ('partial', 'Partial'),
-            ('paid', 'Paid'),
-            ('overpaid', 'Overpaid')
-        ],
-        default='pending'
+    bank_account = models.ForeignKey(
+        'BankAccount',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True
     )
+    notes = models.TextField(blank=True, null=True)
     transaction_date = models.DateField(default=timezone.now)
     transaction_time = models.TimeField(default=timezone.now)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
 
-    def update_payment_status(self):
-        if self.amount_paid == 0:
-            self.payment_status = 'pending'
-        elif self.amount_paid < self.total:
-            self.payment_status = 'partial'
-        elif self.amount_paid == self.total:
+    def save(self, *args, **kwargs):
+        if not self.transaction_type:
+            raise ValidationError("Transaction type must be specified")
+            
+        if self.transaction_type == 'stock':
+            if not self.pk:  # New transaction
+                self.balance = self.total
+                self.amount_paid = 0
+                self.payment_status = 'pending'
+        elif self.transaction_type == 'payment':
+            self.balance = 0
             self.payment_status = 'paid'
-        else:
-            self.payment_status = 'overpaid'
-        self.balance = self.total - self.amount_paid
-        self.save()
+            
+            # Update related stock transactions
+            if not self.pk:  # Only for new payment transactions
+                pending_transactions = Transaction.objects.filter(
+                    customer=self.customer,
+                    transaction_type='stock',
+                    payment_status__in=['pending', 'partial']
+                ).order_by('created_at')
+                
+                remaining_payment = float(self.amount_paid)
+                for pending_tx in pending_transactions:
+                    if remaining_payment <= 0:
+                        break
+                        
+                    current_balance = float(pending_tx.balance)
+                    if current_balance > 0:
+                        amount_to_apply = min(remaining_payment, current_balance)
+                        pending_tx.amount_paid = float(pending_tx.amount_paid) + amount_to_apply
+                        pending_tx.balance = current_balance - amount_to_apply
+                        pending_tx.payment_status = 'paid' if pending_tx.balance == 0 else 'partial'
+                        pending_tx.save()
+                        remaining_payment -= amount_to_apply
 
-    # def save(self, *args, **kwargs):
-    #     is_new = self._state.adding
-    #     super().save(*args, **kwargs)
-        
-    #     if is_new:
-    #         from auditlog.models import LogEntry
-    #         LogEntry.objects.create(
-    #             content_type_id=Transaction.objects.get_for_model(self).id,
-    #             object_id=self.id,
-    #             object_repr=str(self),
-    #             action=LogEntry.Action.CREATE,
-    #             actor=self.customer.user if self.customer else None,
-    #             changes={
-    #                 'customer': str(self.customer),
-    #                 'quality_type': self.quality_type,
-    #                 'quantity': str(self.quantity),
-    #                 'rate': str(self.rate),
-    #                 'total': str(self.total),
-    #                 'payment_status': self.payment_status
-    #             }
-    #         )
+        # Calculate running balance
+        with transaction.atomic():
+            previous_transaction = Transaction.objects.filter(
+                customer=self.customer,
+                created_at__lt=self.created_at
+            ).order_by('-created_at').first()
+
+            if previous_transaction:
+                if self.transaction_type == 'stock':
+                    self.running_balance = previous_transaction.running_balance + self.total
+                else:  # payment
+                    self.running_balance = previous_transaction.running_balance - self.amount_paid
+            else:
+                self.running_balance = self.total if self.transaction_type == 'stock' else -self.amount_paid
+
+            super().save(*args, **kwargs)
+
+    def clean(self):
+        if self.payment_type == 'bank' and not self.bank_account:
+            raise ValidationError("Bank account is required for bank transfers")
+
+    def __str__(self):
+        return f"{self.transaction_type} - {self.customer.name} - {self.total}"
 
     class Meta:
         ordering = ['-created_at']
@@ -112,7 +160,7 @@ class Customer(models.Model):
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, 
         on_delete=models.CASCADE,
-        null=True,  # Allow null temporarily for migration
+        null=True,
         blank=True
     )
     name = models.CharField(max_length=100)
@@ -120,6 +168,8 @@ class Customer(models.Model):
     email = models.EmailField()
     address = models.TextField(blank=True)
     gst_number = models.CharField(max_length=15, blank=True)
+    pan_number = models.CharField(max_length=10, blank=True, null=True)
+    aadhaar_number = models.CharField(max_length=12, null=True, blank=True)  # Remove unique constraint temporarily
     company_name = models.CharField(max_length=100, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
@@ -127,7 +177,48 @@ class Customer(models.Model):
     def __str__(self):
         return self.name
 
+    class Meta:
+        permissions = [
+            ("can_edit_sensitive_info", "Can edit sensitive information like Aadhaar and PAN")
+        ]
+
+class BankAccount(models.Model):
+    customer = models.ForeignKey(
+        Customer, 
+        on_delete=models.CASCADE,
+        related_name='bank_accounts'
+    )
+    account_holder_name = models.CharField(max_length=100)
+    bank_name = models.CharField(max_length=100)
+    account_number = models.CharField(max_length=20)
+    ifsc_code = models.CharField(max_length=11)
+    is_active = models.BooleanField(default=True)
+    is_default = models.BooleanField(default=False)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        unique_together = ('customer', 'account_number')
+
+    def save(self, *args, **kwargs):
+        # If this is the first account, make it default
+        if not self.pk and not BankAccount.objects.filter(customer=self.customer).exists():
+            self.is_default = True
+        
+        # If this is being set as default, unset others
+        if self.is_default:
+            BankAccount.objects.filter(
+                customer=self.customer, 
+                is_default=True
+            ).update(is_default=False)
+            
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.bank_name} - {self.account_number}"
+
 # Register models with auditlog
 auditlog.register(CustomUser)
 auditlog.register(Transaction)
 auditlog.register(Customer)
+auditlog.register(BankAccount)

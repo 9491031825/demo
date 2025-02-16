@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useDispatch } from 'react-redux';
 import { createTransaction } from '../../store/slices/transactionSlice';
 import { toast } from 'react-toastify';
+import axios from '../../services/axios';
 
 export default function TransactionForm({ customer, onBack }) {
   const [transactions, setTransactions] = useState([{
@@ -14,9 +15,13 @@ export default function TransactionForm({ customer, onBack }) {
     payment_type: 'cash',
     payment_amount: '',
     transaction_id: '',
-    notes: ''
+    bank_account_id: '',
+    notes: '',
+    date: new Date().toLocaleString()
   });
+  const [currentTime, setCurrentTime] = useState(new Date().toLocaleString());
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [bankAccounts, setBankAccounts] = useState([]);
 
   const qualityTypes = ['Type 1', 'Type 2', 'Type 3']; // This could be fetched from API
 
@@ -53,6 +58,33 @@ export default function TransactionForm({ customer, onBack }) {
 
   const dispatch = useDispatch();
 
+  // Update time every second
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date().toLocaleString());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  // Fetch bank accounts when customer changes
+  useEffect(() => {
+    const fetchBankAccounts = async () => {
+      if (!customer?.id) return;
+      
+      try {
+        const response = await axios.get(`/api/customers/${customer.id}/bank-accounts/`);
+        console.log('Fetched bank accounts:', response.data);
+        setBankAccounts(response.data);
+      } catch (error) {
+        console.error('Failed to fetch bank accounts:', error);
+        toast.error('Failed to load bank accounts');
+      }
+    };
+
+    fetchBankAccounts();
+  }, [customer]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
@@ -76,6 +108,7 @@ export default function TransactionForm({ customer, onBack }) {
             payment_type: paymentDetails.payment_type,
             payment_amount: parseFloat(paymentDetails.payment_amount) || 0,
             transaction_id: paymentDetails.transaction_id,
+            bank_account_id: paymentDetails.bank_account_id,
             notes: paymentDetails.notes
         };
 
@@ -111,9 +144,14 @@ export default function TransactionForm({ customer, onBack }) {
         <button onClick={onBack} className="text-indigo-600 hover:text-indigo-900">
           ← Back to Search
         </button>
-        <h2 className="text-xl font-semibold text-gray-900">
-          Transaction for {customer.name}
-        </h2>
+        <div className="text-right">
+          <h2 className="text-xl font-semibold text-gray-900">
+            Transaction for {customer.name}
+          </h2>
+          <p className="text-sm text-gray-600">
+            {currentTime}
+          </p>
+        </div>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
@@ -172,7 +210,12 @@ export default function TransactionForm({ customer, onBack }) {
           <div className="grid grid-cols-2 gap-4">
             <select
               value={paymentDetails.payment_type}
-              onChange={(e) => setPaymentDetails({...paymentDetails, payment_type: e.target.value})}
+              onChange={(e) => setPaymentDetails({
+                ...paymentDetails,
+                payment_type: e.target.value,
+                bank_account_id: '',
+                transaction_id: ''
+              })}
               className="rounded-md border-gray-300"
               required
             >
@@ -180,35 +223,111 @@ export default function TransactionForm({ customer, onBack }) {
               <option value="bank">Bank Transfer</option>
               <option value="upi">UPI</option>
             </select>
-            
-            <input
-              type="number"
-              value={paymentDetails.payment_amount}
-              onChange={(e) => setPaymentDetails({...paymentDetails, payment_amount: e.target.value})}
-              placeholder="Payment Amount"
-              className="rounded-md border-gray-300"
-              min="0"
-              max={grandTotal}
-            />
-            
-            {paymentDetails.payment_type !== 'cash' && (
-              <input
-                type="text"
-                value={paymentDetails.transaction_id}
-                onChange={(e) => setPaymentDetails({...paymentDetails, transaction_id: e.target.value})}
-                placeholder="Transaction ID"
-                className="rounded-md border-gray-300"
-                required={paymentDetails.payment_type !== 'cash'}
-              />
+
+            {paymentDetails.payment_type === 'bank' && (
+              <>
+                <div className="col-span-2">
+                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                    Select Bank Account
+                  </label>
+                  <select
+                    value={paymentDetails.bank_account_id}
+                    onChange={(e) => setPaymentDetails({
+                      ...paymentDetails,
+                      bank_account_id: e.target.value
+                    })}
+                    className="w-full rounded-md border-gray-300"
+                    required
+                  >
+                    <option value="">Select Bank Account</option>
+                    {bankAccounts.map((account) => (
+                      <option key={account.id} value={account.id}>
+                        {account.bank_name} - {account.account_number}
+                      </option>
+                    ))}
+                  </select>
+                  
+                  {paymentDetails.bank_account_id && (
+                    <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
+                      {bankAccounts
+                        .filter(account => account.id.toString() === paymentDetails.bank_account_id)
+                        .map(selectedAccount => (
+                          <div key={selectedAccount.id} className="space-y-3 text-base">
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">Account Holder:</span> 
+                              {selectedAccount.account_holder_name}
+                            </p>
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">Bank Name:</span> 
+                              {selectedAccount.bank_name}
+                            </p>
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">Account Number:</span> 
+                              {selectedAccount.account_number}
+                            </p>
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">IFSC Code:</span> 
+                              {selectedAccount.ifsc_code}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+                </div>
+              </>
             )}
-            
-            <textarea
-              value={paymentDetails.notes}
-              onChange={(e) => setPaymentDetails({...paymentDetails, notes: e.target.value})}
-              placeholder="Notes"
-              className="rounded-md border-gray-300"
-              rows="2"
-            />
+
+            {(paymentDetails.payment_type === 'bank' || paymentDetails.payment_type === 'upi') && (
+              <div className="col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-1">
+                  Transaction ID
+                </label>
+                <input
+                  type="text"
+                  value={paymentDetails.transaction_id}
+                  onChange={(e) => setPaymentDetails({
+                    ...paymentDetails,
+                    transaction_id: e.target.value
+                  })}
+                  className="w-full rounded-md border-gray-300"
+                  required
+                  placeholder="Enter transaction ID"
+                />
+              </div>
+            )}
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Payment Amount
+              </label>
+              <input
+                type="number"
+                value={paymentDetails.payment_amount}
+                onChange={(e) => setPaymentDetails({
+                  ...paymentDetails,
+                  payment_amount: e.target.value
+                })}
+                className="w-full rounded-md border-gray-300"
+                min="0"
+                max={calculateGrandTotal()}
+                required
+              />
+            </div>
+
+            <div className="col-span-2">
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Notes
+              </label>
+              <textarea
+                value={paymentDetails.notes}
+                onChange={(e) => setPaymentDetails({
+                  ...paymentDetails,
+                  notes: e.target.value
+                })}
+                className="w-full rounded-md border-gray-300"
+                rows="2"
+              />
+            </div>
           </div>
         </div>
 

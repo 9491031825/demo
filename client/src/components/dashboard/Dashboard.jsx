@@ -18,7 +18,6 @@ export default function Dashboard() {
           return;
         }
 
-        // Verify token validity
         const response = await axios.get('/api/auth/verify/');
         if (!response.data.isValid) {
           navigate('/login');
@@ -33,18 +32,12 @@ export default function Dashboard() {
   }, [navigate]);
 
   const handleLogout = () => {
-    // Clear all tokens and auth data
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('username');
-    
-    // Remove Authorization header
     delete axios.defaults.headers.common['Authorization'];
-    
-    // Redirect to login page
     navigate('/login');
   };
-
 
   return (
     <div className="container mx-auto p-4">
@@ -73,7 +66,24 @@ export default function Dashboard() {
       </div>
       
       <div className="w-full">
-        <CustomerSearch />
+        <CustomerSearch 
+          renderActions={(customer) => (
+            <div className="space-x-2">
+              <button
+                onClick={() => navigate(`/transactions/stock/${customer.id}`)}
+                className="bg-blue-600 text-white px-3 py-1 rounded-md hover:bg-blue-700 transition-colors text-sm"
+              >
+                Add Stock
+              </button>
+              <button
+                onClick={() => navigate(`/transactions/payment/${customer.id}`)}
+                className="bg-green-600 text-white px-3 py-1 rounded-md hover:bg-green-700 transition-colors text-sm"
+              >
+                Add Payment
+              </button>
+            </div>
+          )}
+        />
       </div>
 
       <Modal

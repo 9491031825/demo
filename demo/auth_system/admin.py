@@ -38,7 +38,7 @@ class CustomUserAdmin(UserAdmin, ImportExportModelAdmin):
     # add_fieldsets = UserAdmin.add_fieldsets + (
     #     ("Additional Info", {"fields": ("phone_number",)}),
     # )
-    list_display = ("username", "email", "phone_number", "verified_email", "verified_phone")
+    list_display = ("username", "email", "phone_number")
     search_fields = ("username", "email", "phone_number")
 
 # Customer Admin
@@ -49,13 +49,23 @@ class CustomerAdmin(ImportExportModelAdmin):
     search_fields = ("name", "phone_number", "email", "company_name")
     list_filter = ("created_at", "updated_at")
 
-# Transaction Admin
-class TransactionAdmin(ImportExportModelAdmin):
-    resource_class = TransactionResource
-    formats = [CSV, JSON, XLSX]  # Enable CSV, JSON, and Excel
-    list_display = ("customer", "quality_type", "quantity", "rate", "total", "payment_status", "created_at")
-    search_fields = ("customer__name", "quality_type", "payment_status")
-    list_filter = ("payment_status", "created_at")
+@admin.register(Transaction)
+class TransactionAdmin(admin.ModelAdmin):
+    list_display = [
+        'id', 
+        'customer', 
+        'transaction_type',
+        'total',
+        'amount_paid',
+        'payment_status',
+        'created_at'
+    ]
+    list_filter = [
+        'transaction_type',
+        'payment_status',
+        'created_at'
+    ]
+    search_fields = ['customer__name', 'transaction_id']
 
 # CustomLogEntryAdmin
 # class CustomLogEntryAdmin(LogEntryAdmin):
@@ -94,7 +104,6 @@ class TransactionAdmin(ImportExportModelAdmin):
 # Register your models
 admin.site.register(CustomUser, CustomUserAdmin)
 admin.site.register(Customer, CustomerAdmin)
-admin.site.register(Transaction, TransactionAdmin)
 
 # Unregister the default LogEntry admin and register our custom one
 # admin.site.unregister(LogEntry)

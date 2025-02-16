@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import UserSerializer, CustomerSerializer, TransactionSerializer
+from .serializers import UserSerializer, CustomerSerializer, TransactionSerializer, BankAccountSerializer
 import random
 from twilio.rest import Client
 from google.auth.transport import requests
@@ -17,11 +17,13 @@ import json
 from django.core.mail import send_mail
 from django.contrib.auth import get_user_model
 from django.db.models import Q, Sum
-from .models import Transaction, Customer
+from .models import Transaction, Customer, BankAccount
 from datetime import datetime, timedelta
 import pytz
 from auditlog.models import LogEntry
 from django.core.paginator import Paginator
+from django.utils import timezone
+from django.db import transaction
 
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
@@ -65,39 +67,39 @@ def user_login(request):
     print(otp)  # For development purposes
 
     # Send OTP via Email
-    email_status = "OTP sent via email."
-    try:
-        send_mail(
-            subject="Your Login OTP",
-            message=f"{username}'s login OTP: {otp}",
-            from_email=EMAIL_HOST_USER,
-            recipient_list=[ADMIN_EMAIL],
-            fail_silently=False,
-        )
-    except Exception as e:
-        print(f"Email Error: {str(e)}")
+    # email_status = "OTP sent via email."
+    # try:
+    #     send_mail(
+    #         subject="Your Login OTP",
+    #         message=f"{username}'s login OTP: {otp}",
+    #         from_email=EMAIL_HOST_USER,
+    #         recipient_list=[ADMIN_EMAIL],
+    #         fail_silently=False,
+    #     )
+    # except Exception as e:
+    #     print(f"Email Error: {str(e)}")
 
-    # Send OTP via SMS
-    sms_status = "OTP sent via SMS."
-    try:
-        if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
-            client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
-            client.messages.create(
-                body=f"{username}'s login OTP generated: {otp}",
-                from_=TWILIO_PHONE_NUMBER,
-                to=ADMIN_PHONE,
-            )
-        else:
-            sms_status = "Twilio credentials or admin phone number is missing."
-    except Exception as e:
-        sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
+    # # Send OTP via SMS
+    # try:
+    #     if all([TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, ADMIN_PHONE]):
+    #         client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
+    #         client.messages.create(
+    #             body=f"{username}'s login OTP generated: {otp}",
+    #             from_=TWILIO_PHONE_NUMBER,
+    #             to=ADMIN_PHONE,
+    #         )
+    #         sms_status = "OTP sent via SMS."
+    #     else:
+    #         sms_status = "Twilio credentials or admin phone number is missing."
+    # except Exception as e:
+    #     sms_status = f"Failed to send OTP via SMS. Error: {str(e)}"
     response = Response({
         "message": "OTP process completed.",
-        "email_status": email_status,
-        "sms_status": sms_status,
+        # "email_status": email_status,
+        # "sms_status": sms_status,
         "next": "/user/login/otpverification"
     })
-    print(sms_status)
+    # print(sms_status)
     return response
 
 @api_view(['POST'])
@@ -261,37 +263,77 @@ def get_transactions(request, customer_id):
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_customer(request):
-    email = request.data.get('email')
-    phone_number = request.data.get('phone_number')
-    
-    duplicate_fields = {}
-    
-    if email:
-        existing_email = Customer.objects.filter(email=email).first()
-        if existing_email:
-            duplicate_fields['email'] = True
-    
-    if phone_number:
-        existing_phone = Customer.objects.filter(phone_number=phone_number).first()
-        if existing_phone:
-            duplicate_fields['phone_number'] = True
-    
-    if duplicate_fields:
-        # Get the first matching customer to show as an example
-        existing_customer = Customer.objects.filter(
-            Q(email=email) if email else Q(phone_number=phone_number)
-        ).first()
-        
+    # Check for duplicate Aadhaar
+    aadhaar_number = request.data.get('aadhaar_number')
+    if Customer.objects.filter(aadhaar_number=aadhaar_number).exists():
         return Response({
-            "error": "Customer already exists",
-            "duplicate_fields": duplicate_fields,
-            "existing_customer": CustomerSerializer(existing_customer).data
+            "error": "Customer with this Aadhaar number already exists"
         }, status=400)
-    
+
     serializer = CustomerSerializer(data=request.data)
     if serializer.is_valid():
         serializer.save(user=request.user)
         return Response(serializer.data, status=201)
+    return Response(serializer.errors, status=400)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_bank_account(request, customer_id):
+    try:
+        # Verify customer belongs to current user
+        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        
+        # Log the incoming request data
+        print("Received bank account data:", request.data)
+        
+        # If this is set as default, unset other default accounts
+        if request.data.get('is_default'):
+            BankAccount.objects.filter(customer=customer, is_default=True).update(is_default=False)
+        
+        # Create serializer with customer context
+        serializer = BankAccountSerializer(data=request.data)
+        
+        if serializer.is_valid():
+            # Save with customer reference
+            bank_account = serializer.save(customer=customer)
+            print("Bank account created successfully:", bank_account.id)
+            return Response(serializer.data, status=201)
+        else:
+            print("Serializer errors:", serializer.errors)
+            return Response(serializer.errors, status=400)
+            
+    except Exception as e:
+        print("Error creating bank account:", str(e))
+        return Response({
+            'error': f'Failed to create bank account: {str(e)}'
+        }, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_bank_accounts(request, customer_id):
+    customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+    bank_accounts = customer.bank_accounts.all()
+    serializer = BankAccountSerializer(bank_accounts, many=True)
+    return Response(serializer.data)
+
+@api_view(['PATCH'])
+@permission_classes([IsAuthenticated])
+def update_customer(request, customer_id):
+    customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+    
+    # Check if user has permission to edit sensitive information
+    sensitive_fields = ['aadhaar_number', 'pan_number']
+    has_sensitive_fields = any(field in request.data for field in sensitive_fields)
+    
+    if has_sensitive_fields and not request.user.has_perm('auth_system.can_edit_sensitive_info'):
+        return Response({
+            "error": "You don't have permission to edit sensitive information"
+        }, status=403)
+    
+    serializer = CustomerSerializer(customer, data=request.data, partial=True)
+    if serializer.is_valid():
+        serializer.save()
+        return Response(serializer.data)
     return Response(serializer.errors, status=400)
 
 @api_view(['GET'])
@@ -346,8 +388,6 @@ def create_transaction(request):
     try:
         data = request.data
         customer_id = data.get('customer_id')
-        
-        # Verify the customer belongs to the current user
         customer = get_object_or_404(Customer, id=customer_id, user=request.user)
         
         transactions_data = data.get('transactions', [])
@@ -357,6 +397,21 @@ def create_transaction(request):
             return Response({
                 'error': 'Missing required fields: transactions'
             }, status=400)
+
+        bank_account = None
+        # Validate bank account if payment type is bank
+        if payment_details.get('payment_type') == 'bank':
+            bank_account_id = payment_details.get('bank_account_id')
+            if not bank_account_id:
+                return Response({
+                    'error': 'Bank account is required for bank transfers'
+                }, status=400)
+            
+            # Verify the bank account belongs to the customer
+            bank_account = get_object_or_404(BankAccount, 
+                id=bank_account_id, 
+                customer=customer
+            )
 
         created_transactions = []
         current_datetime = datetime.now()
@@ -369,7 +424,7 @@ def create_transaction(request):
             proportional_payment = (transaction_total / total_transaction_amount) * payment_amount if payment_amount > 0 else 0
             
             transaction_data = {
-                'customer': customer_id,  # Changed from customer_id to customer
+                'customer': customer_id,
                 'quality_type': transaction['quality_type'],
                 'quantity': transaction['quantity'],
                 'rate': transaction['rate'],
@@ -378,16 +433,13 @@ def create_transaction(request):
                 'balance': transaction_total - proportional_payment,
                 'payment_type': payment_details.get('payment_type', 'cash'),
                 'transaction_id': payment_details.get('transaction_id', ''),
+                'bank_account': bank_account.id if bank_account else None,
                 'notes': payment_details.get('notes', ''),
                 'transaction_date': current_datetime.date(),
                 'transaction_time': current_datetime.time()
             }
             
-            serializer = TransactionSerializer(
-                data=transaction_data,
-                context={'customer_id': customer_id}
-            )
-            
+            serializer = TransactionSerializer(data=transaction_data)
             if serializer.is_valid():
                 transaction = serializer.save()
                 transaction.update_payment_status()
@@ -397,6 +449,7 @@ def create_transaction(request):
                 return Response(serializer.errors, status=400)
         
         return Response(created_transactions, status=201)
+        
     except Exception as e:
         print(f"Error creating transaction: {str(e)}")
         return Response({'error': str(e)}, status=400)
@@ -485,3 +538,250 @@ def get_audit_logs(request):
         'count': paginator.count,
         'total_pages': paginator.num_pages
     })
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_customer_bank_accounts(request, customer_id):
+    try:
+        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        bank_accounts = BankAccount.objects.filter(customer=customer)
+        serializer = BankAccountSerializer(bank_accounts, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_customer_details(request, customer_id):
+    try:
+        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        customer_data = CustomerSerializer(customer).data
+        
+        # Add a formatted identifier field that shows either GST or PAN
+        customer_data['tax_identifier'] = {
+            'type': 'GST' if customer.gst_number else 'PAN',
+            'value': customer.gst_number if customer.gst_number else customer.pan_number,
+            'both': {
+                'gst': customer.gst_number or 'N/A',
+                'pan': customer.pan_number or 'N/A'
+            }
+        }
+        
+        return Response(customer_data)
+    except Exception as e:
+        print(f"Error in get_customer_details: {str(e)}")  # Add debugging
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_customer_balance(request, customer_id):
+    try:
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        # Get all transactions for this customer
+        all_transactions = Transaction.objects.filter(customer=customer)
+        
+        # Get stock transactions
+        stock_transactions = Transaction.objects.filter(
+            customer=customer,
+            transaction_type='stock'
+        )
+        
+        # Calculate total stock amount
+        total_stock_amount = stock_transactions.aggregate(
+            total=Sum('total')
+        )['total'] or 0
+        
+        # Get payment transactions
+        payment_transactions = Transaction.objects.filter(
+            customer=customer,
+            transaction_type='payment'
+        )
+        
+        # Calculate total payments
+        total_payments = payment_transactions.aggregate(
+            total=Sum('amount_paid')
+        )['total'] or 0
+        
+        # Calculate net balance
+        net_balance = float(total_stock_amount) - float(total_payments)
+        
+        # Determine if it's an advance payment
+        is_advance = total_payments > total_stock_amount
+        
+        print("\nDetailed Balance Calculations:")
+        print(f"Total Stock Amount: {total_stock_amount}")
+        print(f"Total Payments: {total_payments}")
+        print(f"Net Balance: {net_balance}")
+        print(f"Is Advance: {is_advance}")
+
+        return Response({
+            'total_pending': float(net_balance if net_balance > 0 else 0),
+            'total_paid': float(total_payments),
+            'net_balance': float(net_balance),
+            'is_advance': is_advance,
+            'advance_amount': float(abs(net_balance) if is_advance else 0),
+            'debug_info': {
+                'stock_transactions': list(stock_transactions.values(
+                    'id', 'total', 'transaction_date'
+                )),
+                'payment_transactions': list(payment_transactions.values(
+                    'id', 'amount_paid', 'transaction_date'
+                ))
+            }
+        })
+
+    except Exception as e:
+        print(f"Error in get_customer_balance: {str(e)}")
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_stock_transaction(request):
+    try:
+        data = request.data
+        print("Received data:", data)
+        
+        customer_id = data.get('customer_id')
+        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        
+        transaction_data = {
+            'customer': customer_id,
+            'transaction_type': 'stock',
+            'quality_type': data.get('quality_type'),
+            'quantity': float(data.get('quantity')),
+            'rate': float(data.get('rate')),
+            'total': float(data.get('total')),
+            'notes': data.get('notes', ''),
+            'transaction_date': data.get('transaction_date'),
+            'transaction_time': data.get('transaction_time'),
+            'payment_status': 'pending',
+            'balance': float(data.get('total')),
+            'amount_paid': 0,
+            'payment_type': data.get('payment_type', 'cash')
+        }
+        
+        print("Processing transaction data:", transaction_data)
+        
+        serializer = TransactionSerializer(data=transaction_data)
+        if serializer.is_valid():
+            transaction = serializer.save()
+            print("Transaction saved successfully:", transaction.id)
+            return Response(serializer.data, status=201)
+        print("Serializer errors:", serializer.errors)
+        return Response(serializer.errors, status=400)
+        
+    except Exception as e:
+        print(f"Error in create_stock_transaction: {str(e)}")
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_payment_transaction(request):
+    try:
+        data = request.data
+        print("Received payment data:", data)
+        
+        customer = get_object_or_404(Customer, id=data.get('customer_id'))
+        payment_amount = float(data.get('amount_paid', 0))
+        
+        # Ensure transaction_type is explicitly set
+        if not data.get('transaction_type'):
+            return Response({'error': 'Transaction type must be specified'}, status=400)
+            
+        # Get pending transactions
+        pending_transactions = Transaction.objects.filter(
+            customer=customer,
+            transaction_type='stock',
+            payment_status__in=['pending', 'partial']
+        ).order_by('created_at')
+        
+        with transaction.atomic():
+            # Create the payment transaction with explicit transaction_type
+            transaction_data = {
+                'customer': customer.id,
+                'transaction_type': 'payment',  # Explicitly set as string
+                'payment_type': data.get('payment_type'),
+                'amount_paid': payment_amount,
+                'total': payment_amount,
+                'balance': 0,
+                'transaction_id': data.get('transaction_id'),
+                'bank_account': data.get('bank_account'),
+                'notes': data.get('notes', ''),
+                'transaction_date': data.get('transaction_date', timezone.now().date()),
+                'transaction_time': data.get('transaction_time', timezone.now().time()),
+                'payment_status': 'paid',
+                'quality_type': 'payment',  # Explicitly set
+                'quantity': 1,
+                'rate': payment_amount
+            }
+            
+            print("Creating payment with data:", transaction_data)
+            
+            # Create serializer with explicit transaction_type
+            serializer = TransactionSerializer(data=transaction_data)
+            if not serializer.is_valid():
+                print("Serializer validation errors:", serializer.errors)
+                return Response(serializer.errors, status=400)
+            
+            # Save with explicit transaction_type
+            payment_transaction = serializer.save(transaction_type='payment')
+            remaining_payment = payment_amount
+            updated_transactions = []
+
+            # Update pending transactions
+            for pending_tx in pending_transactions:
+                if remaining_payment <= 0:
+                    break
+
+                current_balance = float(pending_tx.balance or 0)
+                if current_balance > 0:
+                    amount_to_apply = min(remaining_payment, current_balance)
+                    pending_tx.amount_paid = float(pending_tx.amount_paid or 0) + amount_to_apply
+                    pending_tx.balance = current_balance - amount_to_apply
+                    pending_tx.payment_status = 'paid' if pending_tx.balance == 0 else 'partial'
+                    pending_tx.save()
+                    
+                    remaining_payment -= amount_to_apply
+                    updated_transactions.append({
+                        'id': pending_tx.id,
+                        'amount_applied': amount_to_apply,
+                        'new_balance': pending_tx.balance
+                    })
+
+            print(f"Payment of {payment_amount} applied. Updated transactions: {updated_transactions}")
+            
+            return Response({
+                'payment': serializer.data,
+                'updated_transactions': updated_transactions,
+                'remaining_payment': remaining_payment
+            }, status=201)
+        
+    except Exception as e:
+        print(f"Error in create_payment_transaction: {str(e)}")
+        print(f"Error type: {type(e)}")
+        print(f"Error details: {e.__dict__}")
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_transaction_details(request, transaction_id):
+    try:
+        transaction = get_object_or_404(Transaction, id=transaction_id)
+        serializer = TransactionSerializer(transaction)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_transaction_history(request, customer_id):
+    try:
+        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+
+        transactions = Transaction.objects.filter(customer=customer)
+        serializer = TransactionSerializer(transactions, many=True)
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
