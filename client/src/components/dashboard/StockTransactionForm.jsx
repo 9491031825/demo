@@ -39,7 +39,6 @@ export default function StockTransactionForm() {
     }
   });
 
-  // Add new state for tracking total amounts
   const [totalAmounts, setTotalAmounts] = useState({
     existingBalance: 0,
     newStock: 0,
@@ -47,7 +46,7 @@ export default function StockTransactionForm() {
   });
 
   const dispatch = useDispatch();
-  const qualityTypes = ['Type 1', 'Type 2', 'Type 3']; // This could be fetched from API
+  const qualityTypes = ['Type 1', 'Type 2', 'Type 3'];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,6 +107,13 @@ export default function StockTransactionForm() {
     }]);
   };
 
+  const removeRow = (index) => {
+    if (transactions.length > 1) {
+      const newTransactions = transactions.filter((_, i) => i !== index);
+      setTransactions(newTransactions);
+    }
+  };
+
   const updateTransaction = (index, field, value) => {
     const newTransactions = [...transactions];
     newTransactions[index] = {
@@ -133,43 +139,41 @@ export default function StockTransactionForm() {
       const validTransactions = transactions
         .filter(t => t.quality_type && t.quantity && t.rate)
         .map(t => ({
+          customer_id: customerId,
           quality_type: t.quality_type,
           quantity: parseFloat(t.quantity),
           rate: parseFloat(t.rate),
-          total: parseFloat(calculateRowTotal(t))
-        }))[0];
+          total: parseFloat(calculateRowTotal(t)),
+          notes: '',
+          transaction_date: new Date().toISOString().split('T')[0],
+          transaction_time: new Date().toTimeString().split(' ')[0],
+          transaction_type: 'stock',
+          payment_type: 'cash'
+        }));
 
-      if (!validTransactions) {
+      if (validTransactions.length === 0) {
         toast.error('Please fill in all transaction fields');
         return;
       }
 
-      const payload = {
-        customer_id: customerId,
-        quality_type: validTransactions.quality_type,
-        quantity: validTransactions.quantity,
-        rate: validTransactions.rate,
-        total: validTransactions.total,
-        notes: '',
-        transaction_date: new Date().toISOString().split('T')[0],
-        transaction_time: new Date().toTimeString().split(' ')[0],
-        transaction_type: 'stock',
-        payment_type: 'cash'  // Add default payment type
-      };
-
-      const result = await transactionAPI.createStock(payload);
+      // Create all transactions
+      const results = await Promise.all(
+        validTransactions.map(transaction => 
+          transactionAPI.createStock(transaction)
+        )
+      );
       
-      if (result) {
-        // Refresh the balance after successful transaction
+      if (results.every(result => result)) {
+        // Refresh the balance after successful transactions
         const newBalance = await customerAPI.getBalance(customerId);
         setCustomerBalance(newBalance);
         
-        toast.success('Stock transaction saved successfully!');
+        toast.success('Stock transactions saved successfully!');
         navigate('/dashboard');
       }
     } catch (error) {
       console.error('Transaction error:', error);
-      toast.error(error?.response?.data?.error || 'Failed to save transaction');
+      toast.error(error?.response?.data?.error || 'Failed to save transactions');
     } finally {
       setIsSubmitting(false);
     }
@@ -177,7 +181,6 @@ export default function StockTransactionForm() {
 
   const handleBack = () => navigate('/dashboard');
 
-  // Add this after the transactions grid in the render
   const renderTotalCalculation = () => (
     <div className="mt-4 space-y-2 p-4 bg-gray-50 rounded-md">
       <div className="flex justify-between">
@@ -204,7 +207,6 @@ export default function StockTransactionForm() {
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow">
-        {/* Header with Customer Info and Time */}
         <div className="flex items-center justify-between mb-6">
           <button 
             onClick={handleBack} 
@@ -222,7 +224,6 @@ export default function StockTransactionForm() {
           </div>
         </div>
 
-        {/* Customer Details Card */}
         <div className="mb-6 bg-gray-50 p-4 rounded-lg">
           <h3 className="text-lg font-medium mb-3">Customer Details</h3>
           <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
@@ -257,7 +258,6 @@ export default function StockTransactionForm() {
           </div>
         </div>
 
-        {/* Balance Summary with better formatting */}
         <div className="mb-6 space-y-2">
           <h3 className="text-lg font-medium">Current Balance</h3>
           <div className="grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-md">
@@ -285,11 +285,10 @@ export default function StockTransactionForm() {
           </div>
         </div>
 
-        {/* Stock Transaction Form */}
         <form onSubmit={handleSubmit}>
           <div className="space-y-4">
             {transactions.map((transaction, index) => (
-              <div key={index} className="grid grid-cols-4 gap-4">
+              <div key={index} className="grid grid-cols-5 gap-4 items-center">
                 <select
                   value={transaction.quality_type}
                   onChange={(e) => updateTransaction(index, 'quality_type', e.target.value)}
@@ -324,6 +323,14 @@ export default function StockTransactionForm() {
                 <div className="flex items-center">
                   <span className="mr-2">₹{transaction.total}</span>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => removeRow(index)}
+                  className="text-red-600 hover:text-red-800"
+                  disabled={transactions.length === 1}
+                >
+                  Remove
+                </button>
               </div>
             ))}
           </div>
@@ -368,4 +375,4 @@ export default function StockTransactionForm() {
       </div>
     </div>
   );
-} 
+}

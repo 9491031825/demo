@@ -7,6 +7,8 @@ import SessionTimeout from './components/common/SessionTimeout';
 import AllTransactionsHistory from './components/dashboard/AllTransactionsHistory';
 import StockTransactionForm from './components/dashboard/StockTransactionForm';
 import PaymentTransactionForm from './components/dashboard/PaymentTransactionForm';
+import CustomerListPage from './components/customers/CustomerListPage';
+import CustomerDetailsPage from './components/customers/CustomerDetailsPage';
 
 function App() {
   const AdminRedirect = () => {
@@ -27,6 +29,8 @@ function App() {
         <Route path="/transactions/history" element={<AllTransactionsHistory />} />
         <Route path="/transactions/stock/:customerId" element={<StockTransactionForm />} />
         <Route path="/transactions/payment/:customerId" element={<PaymentTransactionForm />} />
+        <Route path="/customers" element={<CustomerListPage />} />
+        <Route path="/customers/:customerId" element={<CustomerDetailsPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>

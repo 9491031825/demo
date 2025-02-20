@@ -2,10 +2,11 @@ from django.urls import path
 from .views import (
     user_login, verify_user, home_page, twilio_incoming, 
     twilio_status, verify_token, search_customers, create_customer,
-    get_transactions, search_transactions, create_transaction,
+    get_transactions,
     add_bank_account, get_bank_accounts, get_customer_bank_accounts, 
     get_transaction_details, get_transaction_history, create_stock_transaction,
-    create_payment_transaction, get_customer_details, get_customer_balance
+    create_payment_transaction, get_customer_details, get_customer_balance,
+    get_purchase_insights
 )
 
 urlpatterns = [
@@ -25,5 +26,6 @@ urlpatterns = [
     path('api/transactions/stock/create/', create_stock_transaction, name='create_stock_transaction'),
     path('api/transactions/payment/create/', create_payment_transaction, name='create_payment_transaction'),
     path('api/transactions/<int:transaction_id>/', get_transaction_details, name='get_transaction_details'),
-    path('api/transactions/search/', search_transactions, name='search_transactions'),
+    path('api/transactions/search/', get_transactions, name='get_transactions'),
+    path('api/transactions/insights', get_purchase_insights, name='purchase_insights'),
 ]

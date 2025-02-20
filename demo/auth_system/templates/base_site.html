@@ -1,0 +1,22 @@
+<script>
+    var timeout = 60000;  // 10 minutes in milliseconds
+    var logoutUrl = "/admin/logout/";
+
+    function logoutUser() {
+        fetch(logoutUrl, { method: 'POST', credentials: 'same-origin' })
+            .then(response => {
+                if (response.redirected) {
+                    window.location.href = response.url;
+                }
+            });
+    }
+
+    function resetTimer() {
+        clearTimeout(window.logoutTimer);
+        window.logoutTimer = setTimeout(logoutUser, timeout);
+    }
+
+    document.onload = resetTimer;
+    document.onmousemove = resetTimer;
+    document.onkeypress = resetTimer;
+</script>

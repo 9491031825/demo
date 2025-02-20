@@ -2,12 +2,18 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import CustomerSearch from './CustomerSearch';
 import NewCustomerForm from './NewCustomerForm';
+import CustomerList from './CustomerList';
 import Modal from '../common/Modal';
 import axios from '../../services/axios';
+import AddBankAccountForm from './AddBankAccountForm';
+import PurchaseInsights from './PurchaseInsights';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isCustomerListOpen, setIsCustomerListOpen] = useState(false);
+  const [isAddBankModalOpen, setIsAddBankModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   useEffect(() => {
     const verifyAuth = async () => {
@@ -45,22 +51,28 @@ export default function Dashboard() {
         <h1 className="text-2xl font-bold">Dashboard</h1>
         <div className="space-x-4">
           <button
+            onClick={() => navigate('/customers')}
+            className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition-colors"
+          >
+            Customer Database
+          </button>
+          <button
             onClick={() => setIsModalOpen(true)}
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition-colors"
           >
             Add New Customer
           </button>
           <button
-            onClick={handleLogout}
-            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
-          >
-            Logout
-          </button>
-          <button
             onClick={() => navigate('/transactions/history')}
             className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700"
           >
             View All Transactions
+          </button>
+          <button
+            onClick={handleLogout}
+            className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
+          >
+            Logout
           </button>
         </div>
       </div>
@@ -81,10 +93,21 @@ export default function Dashboard() {
               >
                 Add Payment
               </button>
+              <button
+                onClick={() => {
+                  setSelectedCustomer(customer);
+                  setIsAddBankModalOpen(true);
+                }}
+                className="bg-purple-600 text-white px-3 py-1 rounded-md hover:bg-purple-700 transition-colors text-sm"
+              >
+                Add Bank Account
+              </button>
             </div>
           )}
         />
       </div>
+
+      <PurchaseInsights />
 
       <Modal
         isOpen={isModalOpen}
@@ -92,6 +115,31 @@ export default function Dashboard() {
         title="Add New Customer"
       >
         <NewCustomerForm onSuccess={() => setIsModalOpen(false)} />
+      </Modal>
+
+      <Modal
+        isOpen={isCustomerListOpen}
+        onClose={() => setIsCustomerListOpen(false)}
+        title="Customer Database"
+      >
+        <CustomerList onClose={() => setIsCustomerListOpen(false)} />
+      </Modal>
+
+      <Modal
+        isOpen={isAddBankModalOpen}
+        onClose={() => {
+          setIsAddBankModalOpen(false);
+          setSelectedCustomer(null);
+        }}
+        title="Add Bank Account"
+      >
+        <AddBankAccountForm 
+          customerId={selectedCustomer?.id}
+          onSuccess={() => {
+            setIsAddBankModalOpen(false);
+            setSelectedCustomer(null);
+          }}
+        />
       </Modal>
     </div>
   );
