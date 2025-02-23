@@ -90,12 +90,13 @@ export const transactionAPI = {
     }
   },
 
-  createPayment: async (transactionData) => {
+  createPayment: async (paymentData) => {
     try {
-      const response = await axios.post('/api/transactions/payment/create/', transactionData);
+      console.log('Creating payment with data:', paymentData);
+      const response = await axios.post('/api/transactions/payment/create/', paymentData);
       return response.data;
     } catch (error) {
-      console.error('Create payment transaction error:', error);
+      console.error('Create payment error:', error);
       throw error.response?.data || error;
     }
   },
@@ -122,5 +123,28 @@ export const transactionAPI = {
       console.error('Search transactions error:', error);
       throw error.response?.data || error;
     }
-  }
+  },
+
+  createBulkPayment: async (paymentsData) => {
+    try {
+      console.log('Creating bulk payment with data:', paymentsData);
+      const response = await axios.post('/api/transactions/payment/bulk/', 
+        paymentsData.map(payment => ({
+          customer_id: payment.customer_id,
+          payment_type: payment.payment_type,
+          amount_paid: parseFloat(payment.amount_paid),
+          bank_account: payment.bank_account,
+          transaction_id: payment.transaction_id,
+          notes: payment.notes,
+          transaction_date: payment.transaction_date,
+          transaction_time: payment.transaction_time,
+          payment_status: payment.payment_status
+        }))
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Create bulk payment error:', error);
+      throw error.response?.data || error;
+    }
+  },
 };

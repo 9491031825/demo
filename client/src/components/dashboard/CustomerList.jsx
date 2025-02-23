@@ -6,6 +6,7 @@ export default function CustomerList({ onClose }) {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [customerTransactions, setCustomerTransactions] = useState({});
+  const [customerBalances, setCustomerBalances] = useState({});
 
   // Fetch both customers and their payment transactions
   const fetchCustomerData = async (query) => {
@@ -31,14 +32,35 @@ export default function CustomerList({ onClose }) {
         }
       });
 
-      const transactionsResults = await Promise.all(transactionsPromises);
+      // Fetch balances for each customer
+      const balancePromises = customersData.map(async (customer) => {
+        try {
+          const balanceResponse = await axios.get(`/api/customers/${customer.id}/balance/`);
+          return { customerId: customer.id, balance: balanceResponse.data.net_balance };
+        } catch (error) {
+          console.error(`Error fetching balance for customer ${customer.id}:`, error);
+          return { customerId: customer.id, balance: 0 };
+        }
+      });
+
+      const [transactionsResults, balanceResults] = await Promise.all([
+        Promise.all(transactionsPromises),
+        Promise.all(balancePromises)
+      ]);
+
       const transactionsMap = transactionsResults.reduce((acc, { customerId, transactions }) => {
         acc[customerId] = transactions;
         return acc;
       }, {});
 
+      const balancesMap = balanceResults.reduce((acc, { customerId, balance }) => {
+        acc[customerId] = balance;
+        return acc;
+      }, {});
+
       setCustomers(customersData);
       setCustomerTransactions(transactionsMap);
+      setCustomerBalances(balancesMap);
     } catch (error) {
       console.error('Error fetching customer data:', error);
     } finally {
@@ -114,6 +136,7 @@ export default function CustomerList({ onClose }) {
                 <th className="px-4 py-2 text-left">Email</th>
                 <th className="px-4 py-2 text-left">Company</th>
                 <th className="px-4 py-2 text-left">GST/PAN</th>
+                <th className="px-4 py-2 text-left">Pending Amount</th>
                 <th className="px-4 py-2 text-left">Bank Payments</th>
               </tr>
             </thead>
@@ -126,6 +149,9 @@ export default function CustomerList({ onClose }) {
                   <td className="px-4 py-2">{customer.company_name || '-'}</td>
                   <td className="px-4 py-2">
                     {customer.gst_number || customer.pan_number || '-'}
+                  </td>
+                  <td className="px-4 py-2">
+                    ₹{(customerBalances[customer.id] || 0).toFixed(2)}
                   </td>
                   <td className="px-4 py-2">
                     {renderBankPayments(customer.id)}

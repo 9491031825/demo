@@ -6,7 +6,9 @@ from .views import (
     add_bank_account, get_bank_accounts, get_customer_bank_accounts, 
     get_transaction_details, get_transaction_history, create_stock_transaction,
     create_payment_transaction, get_customer_details, get_customer_balance,
-    get_purchase_insights
+    get_purchase_insights,
+    create_bulk_payment,
+    get_payment_insights,
 )
 
 urlpatterns = [
@@ -28,4 +30,6 @@ urlpatterns = [
     path('api/transactions/<int:transaction_id>/', get_transaction_details, name='get_transaction_details'),
     path('api/transactions/search/', get_transactions, name='get_transactions'),
     path('api/transactions/insights', get_purchase_insights, name='purchase_insights'),
+    path('api/transactions/payment/bulk/', create_bulk_payment, name='create_bulk_payment'),
+    path('api/transactions/payment-insights', get_payment_insights, name='get_payment_insights'),
 ]

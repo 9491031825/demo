@@ -7,6 +7,7 @@ import Modal from '../common/Modal';
 import axios from '../../services/axios';
 import AddBankAccountForm from './AddBankAccountForm';
 import PurchaseInsights from './PurchaseInsights';
+import PaymentInsights from './PaymentInsights';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -69,6 +70,12 @@ export default function Dashboard() {
             View All Transactions
           </button>
           <button
+            onClick={() => navigate('/bulk-settlement')}
+            className="bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition-colors"
+          >
+            Bulk Settlement
+          </button>
+          <button
             onClick={handleLogout}
             className="bg-red-600 text-white px-4 py-2 rounded-md hover:bg-red-700 transition-colors"
           >
@@ -108,6 +115,7 @@ export default function Dashboard() {
       </div>
 
       <PurchaseInsights />
+      <PaymentInsights />
 
       <Modal
         isOpen={isModalOpen}

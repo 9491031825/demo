@@ -9,6 +9,8 @@ import StockTransactionForm from './components/dashboard/StockTransactionForm';
 import PaymentTransactionForm from './components/dashboard/PaymentTransactionForm';
 import CustomerListPage from './components/customers/CustomerListPage';
 import CustomerDetailsPage from './components/customers/CustomerDetailsPage';
+import BulkSettlementPage from './components/dashboard/BulkSettlementPage';
+import SettlementPage from './components/dashboard/SettlementPage';
 
 function App() {
   const AdminRedirect = () => {
@@ -31,6 +33,8 @@ function App() {
         <Route path="/transactions/payment/:customerId" element={<PaymentTransactionForm />} />
         <Route path="/customers" element={<CustomerListPage />} />
         <Route path="/customers/:customerId" element={<CustomerDetailsPage />} />
+        <Route path="/bulk-settlement" element={<BulkSettlementPage />} />
+        <Route path="/settlement" element={<SettlementPage />} />
         <Route path="/" element={<Navigate to="/dashboard" replace />} />
       </Routes>
     </Router>

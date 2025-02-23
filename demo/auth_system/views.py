@@ -7,7 +7,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from .serializers import UserSerializer, CustomerSerializer, TransactionSerializer, BankAccountSerializer
 from .models import Transaction, Customer, BankAccount
 from django.core.mail import send_mail
-from django.db.models import Q, Sum
+from django.db.models import Q, Sum, Count, Avg
 from django.utils import timezone
 from django.db import transaction
 from django.core.paginator import Paginator
@@ -460,25 +460,20 @@ def create_payment_transaction(request):
         data = request.data
         print("Received payment data:", data)
         
+        # Validate required fields
+        required_fields = ['customer_id', 'payment_type', 'amount_paid', 'transaction_id']
+        for field in required_fields:
+            if not data.get(field):
+                return Response({'error': f'Missing required field: {field}'}, status=400)
+        
         customer = get_object_or_404(Customer, id=data.get('customer_id'))
         payment_amount = float(data.get('amount_paid', 0))
         
-        # Ensure transaction_type is explicitly set
-        if not data.get('transaction_type'):
-            return Response({'error': 'Transaction type must be specified'}, status=400)
-            
-        # Get pending transactions
-        pending_transactions = Transaction.objects.filter(
-            customer=customer,
-            transaction_type='stock',
-            payment_status__in=['pending', 'partial']
-        ).order_by('created_at')
-        
         with transaction.atomic():
-            # Create the payment transaction with explicit transaction_type
+            # Create the payment transaction
             transaction_data = {
                 'customer': customer.id,
-                'transaction_type': 'payment',  # Explicitly set as string
+                'transaction_type': 'payment',
                 'payment_type': data.get('payment_type'),
                 'amount_paid': payment_amount,
                 'total': payment_amount,
@@ -489,29 +484,34 @@ def create_payment_transaction(request):
                 'transaction_date': data.get('transaction_date', timezone.now().date()),
                 'transaction_time': data.get('transaction_time', timezone.now().time()),
                 'payment_status': 'paid',
-                'quality_type': 'payment',  # Explicitly set
+                'quality_type': 'payment',
                 'quantity': 1,
                 'rate': payment_amount
             }
             
             print("Creating payment with data:", transaction_data)
             
-            # Create serializer with explicit transaction_type
             serializer = TransactionSerializer(data=transaction_data)
             if not serializer.is_valid():
                 print("Serializer validation errors:", serializer.errors)
                 return Response(serializer.errors, status=400)
             
-            # Save with explicit transaction_type
-            payment_transaction = serializer.save(transaction_type='payment')
+            payment_transaction = serializer.save()
+            
+            # Update pending transactions
+            pending_transactions = Transaction.objects.filter(
+                customer=customer,
+                transaction_type='stock',
+                payment_status__in=['pending', 'partial']
+            ).order_by('created_at')
+            
             remaining_payment = payment_amount
             updated_transactions = []
-
-            # Update pending transactions
+            
             for pending_tx in pending_transactions:
                 if remaining_payment <= 0:
                     break
-
+                    
                 current_balance = float(pending_tx.balance or 0)
                 if current_balance > 0:
                     amount_to_apply = min(remaining_payment, current_balance)
@@ -526,19 +526,15 @@ def create_payment_transaction(request):
                         'amount_applied': amount_to_apply,
                         'new_balance': pending_tx.balance
                     })
-
-            print(f"Payment of {payment_amount} applied. Updated transactions: {updated_transactions}")
             
             return Response({
                 'payment': serializer.data,
                 'updated_transactions': updated_transactions,
                 'remaining_payment': remaining_payment
             }, status=201)
-        
+            
     except Exception as e:
         print(f"Error in create_payment_transaction: {str(e)}")
-        print(f"Error type: {type(e)}")
-        print(f"Error details: {e.__dict__}")
         return Response({'error': str(e)}, status=400)
 
 @api_view(['GET'])
@@ -710,7 +706,7 @@ def get_purchase_insights(request):
         # Base query for stock transactions
         query = Transaction.objects.filter(
             transaction_type='stock'
-        )
+        ).select_related('customer')  # Add customer relation
         
         # Apply time frame filter
         today = timezone.now().date()
@@ -727,25 +723,210 @@ def get_purchase_insights(request):
         if quality_types:
             query = query.filter(quality_type__in=quality_types)
             
-        # Group by date and quality type
-        insights = query.values('transaction_date', 'quality_type').annotate(
-            total_quantity=Sum('quantity'),
-            total_amount=Sum('total')
-        ).order_by('-transaction_date')
+        # Get detailed transaction data
+        insights = query.values(
+            'transaction_date',
+            'transaction_time',
+            'customer__name',
+            'quality_type',
+            'quantity',
+            'rate',
+            'total',
+            'payment_status',
+            'notes'
+        ).order_by('-transaction_date', '-transaction_time')
+        
+        # Format the insights data
+        formatted_insights = [{
+            'transaction_date': transaction['transaction_date'],
+            'transaction_time': transaction['transaction_time'].strftime('%H:%M:%S'),
+            'customer_name': transaction['customer__name'],
+            'quality_type': transaction['quality_type'],
+            'quantity': float(transaction['quantity']),
+            'rate': float(transaction['rate']),
+            'total_amount': float(transaction['total']),
+            'payment_status': transaction['payment_status'],
+            'notes': transaction['notes']
+        } for transaction in insights]
         
         # Calculate summary
         summary = {
             'total_purchases': query.count(),
-            'total_amount': query.aggregate(Sum('total'))['total__sum'] or 0,
-            'total_quantity': query.aggregate(Sum('quantity'))['quantity__sum'] or 0
+            'total_amount': float(query.aggregate(Sum('total'))['total__sum'] or 0),
+            'total_quantity': float(query.aggregate(Sum('quantity'))['quantity__sum'] or 0)
         }
         
         return Response({
-            'insights': insights,
+            'insights': formatted_insights,
             'summary': summary
         })
         
     except Exception as e:
         print(f"Error in get_purchase_insights: {str(e)}")
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def create_bulk_payment(request):
+    try:
+        payments_data = request.data
+        print("Received bulk payments data:", payments_data)
+        
+        saved_payments = []
+        updated_transactions = []
+        
+        with transaction.atomic():
+            for payment in payments_data:
+                customer_id = payment.get('customer_id')
+                customer = get_object_or_404(Customer, id=customer_id)
+                payment_amount = float(payment.get('amount_paid', 0))
+                
+                # Get pending transactions for this customer
+                pending_transactions = Transaction.objects.filter(
+                    customer=customer,
+                    transaction_type='stock',
+                    payment_status__in=['pending', 'partial']
+                ).order_by('created_at')
+                
+                # Create the payment transaction
+                transaction_data = {
+                    'customer': customer.id,
+                    'transaction_type': 'payment',
+                    'payment_type': payment.get('payment_type', 'bank'),
+                    'quality_type': 'payment',
+                    'quantity': 1,
+                    'rate': payment_amount,
+                    'total': payment_amount,
+                    'amount_paid': payment_amount,
+                    'balance': 0,
+                    'bank_account': payment.get('bank_account'),
+                    'notes': payment.get('notes', ''),
+                    'transaction_date': timezone.now().date(),
+                    'transaction_time': timezone.now().time(),
+                    'payment_status': 'paid'
+                }
+                
+                serializer = TransactionSerializer(data=transaction_data)
+                if serializer.is_valid():
+                    payment_transaction = serializer.save()
+                    saved_payments.append(serializer.data)
+                    
+                    # Update pending transactions with this payment
+                    remaining_payment = payment_amount
+                    customer_updated_transactions = []
+                    
+                    for pending_tx in pending_transactions:
+                        if remaining_payment <= 0:
+                            break
+                            
+                        current_balance = float(pending_tx.balance or 0)
+                        if current_balance > 0:
+                            amount_to_apply = min(remaining_payment, current_balance)
+                            pending_tx.amount_paid = float(pending_tx.amount_paid or 0) + amount_to_apply
+                            pending_tx.balance = current_balance - amount_to_apply
+                            pending_tx.payment_status = 'paid' if pending_tx.balance == 0 else 'partial'
+                            pending_tx.save()
+                            
+                            remaining_payment -= amount_to_apply
+                            customer_updated_transactions.append({
+                                'id': pending_tx.id,
+                                'amount_applied': amount_to_apply,
+                                'new_balance': pending_tx.balance
+                            })
+                    
+                    updated_transactions.append({
+                        'customer_id': customer_id,
+                        'updated_transactions': customer_updated_transactions,
+                        'remaining_payment': remaining_payment
+                    })
+                else:
+                    print("Validation error:", serializer.errors)
+                    raise ValidationError(f"Validation error for payment: {serializer.errors}")
+        
+        print(f"Bulk payments processed. Updated transactions: {updated_transactions}")
+        return Response({
+            'payments': saved_payments,
+            'updated_transactions': updated_transactions
+        }, status=201)
+        
+    except ValidationError as e:
+        print(f"Validation error in create_bulk_payment: {str(e)}")
+        return Response({'error': str(e)}, status=400)
+    except Exception as e:
+        print(f"Error in create_bulk_payment: {str(e)}")
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_payment_insights(request):
+    try:
+        # Get query parameters
+        time_frame = request.GET.get('timeFrame', 'all')
+        payment_types = request.GET.getlist('paymentTypes[]', [])
+        
+        # Base query for payment transactions
+        query = Transaction.objects.filter(
+            transaction_type='payment'
+        ).select_related('customer', 'bank_account')
+        
+        # Apply time frame filter
+        today = timezone.now().date()
+        if time_frame == 'today':
+            query = query.filter(transaction_date=today)
+        elif time_frame == 'weekly':
+            week_ago = today - timedelta(days=7)
+            query = query.filter(transaction_date__gte=week_ago)
+        elif time_frame == 'monthly':
+            month_ago = today - timedelta(days=30)
+            query = query.filter(transaction_date__gte=month_ago)
+        
+        # Apply payment type filter
+        if payment_types:
+            query = query.filter(payment_type__in=payment_types)
+            
+        # Get detailed transaction data
+        insights = query.values(
+            'transaction_date',
+            'transaction_time',
+            'customer__name',
+            'payment_type',
+            'bank_account__account_number',
+            'transaction_id',
+            'amount_paid',
+            'notes'
+        ).order_by('-transaction_date', '-transaction_time')
+        
+        # Calculate most common payment type
+        payment_type_count = query.values('payment_type').annotate(
+            count=Count('id')
+        ).order_by('-count').first()
+        
+        # Format insights data
+        formatted_insights = [{
+            'transaction_date': payment['transaction_date'],
+            'transaction_time': payment['transaction_time'].strftime('%H:%M:%S'),
+            'customer_name': payment['customer__name'],
+            'payment_type': payment['payment_type'],
+            'bank_account': payment['bank_account__account_number'],
+            'transaction_id': payment['transaction_id'],
+            'amount_paid': float(payment['amount_paid']),
+            'notes': payment['notes']
+        } for payment in insights]
+        
+        # Calculate summary
+        summary = {
+            'total_payments': query.count(),
+            'total_amount': float(query.aggregate(Sum('amount_paid'))['amount_paid__sum'] or 0),
+            'average_payment': float(query.aggregate(Avg('amount_paid'))['amount_paid__avg'] or 0),
+            'most_common_type': payment_type_count['payment_type'] if payment_type_count else None
+        }
+        
+        return Response({
+            'insights': formatted_insights,
+            'summary': summary
+        })
+        
+    except Exception as e:
+        print(f"Error in get_payment_insights: {str(e)}")
         return Response({'error': str(e)}, status=400)
 
