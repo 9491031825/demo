@@ -55,48 +55,50 @@ export default function CustomerListPage() {
       {loading ? (
         <div className="text-center py-4">Loading...</div>
       ) : (
-        <div className="bg-white rounded-lg shadow overflow-hidden">
-          <table className="min-w-full table-auto">
-            <thead>
-              <tr className="bg-gray-100">
-                <th className="px-6 py-3 text-left">Name</th>
-                <th className="px-6 py-3 text-left">Phone</th>
-                <th className="px-6 py-3 text-left">Email</th>
-                <th className="px-6 py-3 text-left">Company</th>
-                <th className="px-6 py-3 text-left">GST/PAN</th>
-                <th className="px-6 py-3 text-left">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {customers.map((customer) => (
-                <tr 
-                  key={customer.id} 
-                  className="border-b hover:bg-gray-50 cursor-pointer"
-                >
-                  <td className="px-6 py-4">{customer.name}</td>
-                  <td className="px-6 py-4">{customer.phone_number}</td>
-                  <td className="px-6 py-4">{customer.email}</td>
-                  <td className="px-6 py-4">{customer.company_name || '-'}</td>
-                  <td className="px-6 py-4">
-                    {customer.gst_number || customer.pan_number || '-'}
-                  </td>
-                  <td className="px-6 py-4">
-                    <button
-                      onClick={() => navigate(`/customers/${customer.id}`)}
-                      className="text-blue-600 hover:text-blue-800"
-                    >
-                      View Details
-                    </button>
-                  </td>
+        <div className="bg-white rounded-lg shadow">
+          <div className="overflow-x-auto">
+            <table className="min-w-full table-auto">
+              <thead>
+                <tr className="bg-gray-100">
+                  <th className="px-6 py-3 text-left">Name</th>
+                  <th className="px-6 py-3 text-left">Phone</th>
+                  <th className="px-6 py-3 text-left">Email</th>
+                  <th className="px-6 py-3 text-left">Company</th>
+                  <th className="px-6 py-3 text-left">GST/PAN</th>
+                  <th className="px-6 py-3 text-left">Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {customers.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              No customers found
-            </div>
-          )}
+              </thead>
+              <tbody>
+                {customers.map((customer) => (
+                  <tr 
+                    key={customer.id} 
+                    className="border-b hover:bg-gray-50 cursor-pointer"
+                  >
+                    <td className="px-6 py-4">{customer.name}</td>
+                    <td className="px-6 py-4">{customer.phone_number}</td>
+                    <td className="px-6 py-4">{customer.email}</td>
+                    <td className="px-6 py-4">{customer.company_name || '-'}</td>
+                    <td className="px-6 py-4">
+                      {customer.gst_number || customer.pan_number || '-'}
+                    </td>
+                    <td className="px-6 py-4">
+                      <button
+                        onClick={() => navigate(`/customers/${customer.id}`)}
+                        className="text-blue-600 hover:text-blue-800"
+                      >
+                        View Details
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {customers.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No customers found
+              </div>
+            )}
+          </div>
         </div>
       )}
     </div>

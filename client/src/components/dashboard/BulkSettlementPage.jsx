@@ -28,6 +28,12 @@ export default function BulkSettlementPage() {
           >
             Settle Up ({selectedCustomers.length})
           </button>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600 mr-2"
+          >
+            Back to Dashboard
+          </button>
         </div>
         
         <div className="overflow-x-auto">

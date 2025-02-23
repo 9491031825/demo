@@ -147,4 +147,23 @@ export const transactionAPI = {
       throw error.response?.data || error;
     }
   },
+
+  getPaymentInsights: async (timeFrame, paymentTypes = [], date = null) => {
+    try {
+      const params = new URLSearchParams();
+      params.append('timeFrame', timeFrame);
+      
+      if (date && timeFrame === 'today') {
+        params.append('date', date.toISOString());
+      }
+      
+      paymentTypes.forEach(type => params.append('paymentTypes[]', type));
+      
+      const response = await axios.get(`/api/transactions/payment-insights?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get payment insights error:', error);
+      throw error.response?.data || error;
+    }
+  },
 };

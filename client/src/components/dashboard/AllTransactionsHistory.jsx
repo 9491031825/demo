@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import axios from '../../services/axios';
 import debounce from 'lodash/debounce';
+import { useNavigate } from 'react-router-dom';
 
 export default function AllTransactionsHistory() {
   const [transactions, setTransactions] = useState([]);
@@ -9,6 +10,7 @@ export default function AllTransactionsHistory() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
+  const navigate = useNavigate();
 
   const fetchTransactions = async (query = '', pageNum = 1) => {
     setLoading(true);
@@ -66,6 +68,12 @@ export default function AllTransactionsHistory() {
             </div>
           )}
         </div>
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
+        >
+          Back to Dashboard
+        </button>
       </div>
 
       <div className="overflow-x-auto">

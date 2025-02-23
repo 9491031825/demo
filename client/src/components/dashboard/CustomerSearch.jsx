@@ -38,38 +38,44 @@ export default function CustomerSearch({ renderActions }) {
         />
       </div>
 
-      {customers.length > 0 && (
+      {customers.length > 0 ? (
         <div className="bg-white shadow rounded-lg overflow-hidden">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Name
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Phone
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {customers.map((customer) => (
-                <tr key={customer.id}>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {customer.name}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {customer.phone_number}
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    {renderActions(customer)}
-                  </td>
+          <div className="overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200">
+              <thead className="bg-gray-50">
+                <tr>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Phone
+                  </th>
+                  <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="bg-white divide-y divide-gray-200">
+                {customers.map((customer) => (
+                  <tr key={customer.id}>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {customer.name}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {customer.phone_number}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {renderActions(customer)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : searchQuery.trim() !== '' && (
+        <div className="text-center py-4 text-gray-500">
+          No customers found matching your search
         </div>
       )}
     </div>

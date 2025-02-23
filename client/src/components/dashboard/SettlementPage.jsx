@@ -231,7 +231,15 @@ export default function SettlementPage() {
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
-      <h1 className="text-2xl font-bold mb-6">Settlement Details</h1>
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Settlement Details</h1>
+        <button
+          onClick={() => navigate('/dashboard')}
+          className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
+        >
+          Back to Dashboard
+        </button>
+      </div>
       
       <div className="space-y-6">
         {settlements.map((settlement, index) => (

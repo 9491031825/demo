@@ -15,20 +15,24 @@ export default function CustomerDetailsPage() {
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
+  const [showBankDetails, setShowBankDetails] = useState(false);
 
   useEffect(() => {
     const fetchCustomerData = async () => {
       try {
         setLoading(true);
-        const [customerResponse, transactionsResponse, balanceResponse] = await Promise.all([
+        const [customerResponse, transactionsResponse, balanceResponse, bankAccountsResponse] = await Promise.all([
           axios.get(`/api/customers/${customerId}/`),
           axios.get(`/api/customers/${customerId}/transactions/`),
-          axios.get(`/api/customers/${customerId}/balance/`)
+          axios.get(`/api/customers/${customerId}/balance/`),
+          axios.get(`/api/customers/${customerId}/bank-accounts/`)
         ]);
 
         setCustomer(customerResponse.data);
         setTransactions(transactionsResponse.data.results);
         setBalance(balanceResponse.data);
+        setBankAccounts(bankAccountsResponse.data);
       } catch (error) {
         console.error('Error fetching customer data:', error);
       } finally {
@@ -98,6 +102,65 @@ export default function CustomerDetailsPage() {
     }
   };
 
+  const renderBankAccounts = () => (
+    <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold">Bank Accounts</h3>
+        <button
+          onClick={() => setShowBankDetails(!showBankDetails)}
+          className="text-blue-600 hover:text-blue-800 flex items-center"
+        >
+          {showBankDetails ? 'Hide Details' : 'Show Details'}
+          <svg
+            className={`w-5 h-5 ml-1 transform ${showBankDetails ? 'rotate-180' : ''}`}
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+          </svg>
+        </button>
+      </div>
+
+      {showBankDetails && (
+        <div className="space-y-4">
+          {bankAccounts.length > 0 ? (
+            bankAccounts.map((account, index) => (
+              <div
+                key={account.id}
+                className={`p-4 border rounded-lg ${
+                  account.is_default ? 'border-blue-500 bg-blue-50' : 'border-gray-200'
+                }`}
+              >
+                <div className="flex justify-between items-start">
+                  <div>
+                    <p className="font-semibold text-lg">
+                      {account.bank_name}
+                      {account.is_default && (
+                        <span className="ml-2 text-sm text-blue-600 bg-blue-100 px-2 py-1 rounded">
+                          Default
+                        </span>
+                      )}
+                    </p>
+                    <p className="text-gray-600">Account Number: {account.account_number}</p>
+                    <p className="text-gray-600">IFSC Code: {account.ifsc_code}</p>
+                    <p className="text-gray-600">Account Holder: {account.account_holder_name}</p>
+                  </div>
+                  <div className="text-sm text-gray-500">
+                    <p>Branch: {account.branch_name}</p>
+                    <p>Type: {account.account_type}</p>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-gray-500 text-center">No bank accounts found</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
   }
@@ -131,6 +194,8 @@ export default function CustomerDetailsPage() {
           </div>
         </div>
       )}
+
+      {customer && renderBankAccounts()}
 
       {balance && (
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">

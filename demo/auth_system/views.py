@@ -863,21 +863,28 @@ def get_payment_insights(request):
         # Get query parameters
         time_frame = request.GET.get('timeFrame', 'all')
         payment_types = request.GET.getlist('paymentTypes[]', [])
-        
+        date_param = request.GET.get('date')
+
         # Base query for payment transactions
         query = Transaction.objects.filter(
             transaction_type='payment'
         ).select_related('customer', 'bank_account')
         
         # Apply time frame filter
-        today = timezone.now().date()
         if time_frame == 'today':
-            query = query.filter(transaction_date=today)
+            if date_param:
+                # Use the provided date
+                target_date = datetime.fromisoformat(date_param.replace('Z', '+00:00')).date()
+            else:
+                # Use current date in server's timezone
+                target_date = timezone.localtime(timezone.now()).date()
+            
+            query = query.filter(transaction_date=target_date)
         elif time_frame == 'weekly':
-            week_ago = today - timedelta(days=7)
+            week_ago = timezone.now().date() - timedelta(days=7)
             query = query.filter(transaction_date__gte=week_ago)
         elif time_frame == 'monthly':
-            month_ago = today - timedelta(days=30)
+            month_ago = timezone.now().date() - timedelta(days=30)
             query = query.filter(transaction_date__gte=month_ago)
         
         # Apply payment type filter

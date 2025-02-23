@@ -23,6 +23,14 @@ export default function PaymentInsights() {
       setLoading(true);
       const params = new URLSearchParams();
       params.append('timeFrame', timeFrame);
+      
+      // Add today's date in ISO format when timeFrame is 'today'
+      if (timeFrame === 'today') {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0); // Set to start of day
+        params.append('date', today.toISOString());
+      }
+      
       selectedPaymentTypes.forEach(type => params.append('paymentTypes[]', type));
       
       const response = await axios.get(`/api/transactions/payment-insights?${params.toString()}`);
