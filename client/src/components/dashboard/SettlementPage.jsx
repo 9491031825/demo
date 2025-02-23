@@ -107,7 +107,12 @@ export default function SettlementPage() {
       const updated = [...prev];
       updated[index] = {
         ...updated[index],
-        [field]: value
+        [field]: value,
+        // Reset bank-related fields when switching to cash
+        ...(field === 'payment_type' && value === 'cash' && {
+          bank_account_id: '',
+          transaction_id: ''
+        })
       };
       return updated;
     });
@@ -117,7 +122,14 @@ export default function SettlementPage() {
     const settlement = settlements[index];
     const payment = paymentDetails[index];
     
-    if (!payment.payment_amount || !payment.bank_account_id || !payment.transaction_id) {
+    // Validate required fields based on payment type
+    if (!payment.payment_amount) {
+      toast.error('Please enter payment amount');
+      return;
+    }
+    
+    if (payment.payment_type !== 'cash' && (!payment.transaction_id || 
+      (payment.payment_type === 'bank' && !payment.bank_account_id))) {
       toast.error('Please fill in all required payment details');
       return;
     }
@@ -132,16 +144,16 @@ export default function SettlementPage() {
       const currentDate = new Date();
       const paymentData = {
         customer_id: settlement.customer.id,
-        transaction_type: 'payment',  // Explicitly set as payment
+        transaction_type: 'payment',
         payment_type: payment.payment_type,
-        quality_type: 'payment',  // Add this field
-        quantity: 1,  // Add this field
-        rate: parseFloat(payment.payment_amount),  // Add this field
+        quality_type: 'payment',
+        quantity: 1,
+        rate: parseFloat(payment.payment_amount),
         total: parseFloat(payment.payment_amount),
         amount_paid: parseFloat(payment.payment_amount),
-        balance: 0,  // Payment transactions have no balance
-        transaction_id: payment.transaction_id,
-        bank_account: payment.bank_account_id,
+        balance: 0,
+        transaction_id: payment.payment_type === 'cash' ? null : payment.transaction_id,
+        bank_account: payment.payment_type === 'bank' ? payment.bank_account_id : null,
         notes: payment.notes || '',
         transaction_date: format(currentDate, 'yyyy-MM-dd'),
         transaction_time: format(currentDate, 'HH:mm:ss'),
@@ -230,171 +242,245 @@ export default function SettlementPage() {
   const totals = getTotals();
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="text-2xl font-bold">Settlement Details</h1>
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
-        >
-          Back to Dashboard
-        </button>
-      </div>
-      
-      <div className="space-y-6">
-        {settlements.map((settlement, index) => (
-          <div key={settlement.customer.id} className="bg-white p-6 rounded-lg shadow">
-            <div className="space-y-4">
-              {/* Customer Details */}
-              <div className="border-b pb-4">
-                <h3 className="text-xl font-semibold">{settlement.customer.name}</h3>
-                <p className="text-sm text-gray-600">{settlement.customer.phone_number}</p>
-              </div>
+    <div className="p-6 max-w-7xl mx-auto relative">
+      {/* Main content wrapper with adjusted width for large screens */}
+      <div className="lg:w-[calc(100%-320px)]">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold">Settlement Details</h1>
+          <button
+            onClick={() => navigate('/dashboard')}
+            className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+        
+        <div className="space-y-6">
+          {settlements.map((settlement, index) => (
+            <div key={settlement.customer.id} className="bg-white p-6 rounded-lg shadow">
+              <div className="space-y-4">
+                {/* Customer Details */}
+                <div className="border-b pb-4">
+                  <h3 className="text-xl font-semibold">{settlement.customer.name}</h3>
+                  <p className="text-sm text-gray-600">{settlement.customer.phone_number}</p>
+                </div>
 
-              {/* Payment Details Form */}
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Type</label>
-                  <select
-                    value={paymentDetails[index].payment_type}
-                    onChange={(e) => handlePaymentDetailsChange(index, 'payment_type', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300"
-                    required
+                {/* Payment Details Form */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700">Payment Type</label>
+                    <select
+                      value={paymentDetails[index].payment_type}
+                      onChange={(e) => handlePaymentDetailsChange(index, 'payment_type', e.target.value)}
+                      className="mt-1 block w-full rounded-md border-gray-300"
+                      required
+                    >
+                      <option value="cash">Cash</option>
+                      <option value="bank">Bank Transfer</option>
+                      <option value="upi">UPI</option>
+                    </select>
+                  </div>
+
+                  {/* Show bank account selection only for bank transfers */}
+                  {paymentDetails[index].payment_type === 'bank' && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Bank Account</label>
+                      <select
+                        value={paymentDetails[index].bank_account_id}
+                        onChange={(e) => handlePaymentDetailsChange(index, 'bank_account_id', e.target.value)}
+                        className="mt-1 block w-full rounded-md border-gray-300"
+                        required
+                      >
+                        <option value="">Select Bank Account</option>
+                        {settlement.bankAccounts.map(account => (
+                          <option key={account.id} value={account.id}>
+                            {account.bank_name} - {account.account_number}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
+                  {/* Show transaction ID field only for bank and UPI */}
+                  {(paymentDetails[index].payment_type === 'bank' || paymentDetails[index].payment_type === 'upi') && (
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700">Transaction ID</label>
+                      <input
+                        type="text"
+                        value={paymentDetails[index].transaction_id}
+                        onChange={(e) => handlePaymentDetailsChange(index, 'transaction_id', e.target.value)}
+                        className="mt-1 block w-full rounded-md border-gray-300"
+                        required
+                      />
+                    </div>
+                  )}
+
+                  {/* Show bank account details when a bank account is selected */}
+                  {paymentDetails[index].payment_type === 'bank' && paymentDetails[index].bank_account_id && (
+                    <div className="col-span-2 mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
+                      {settlement.bankAccounts
+                        .filter(account => account.id.toString() === paymentDetails[index].bank_account_id)
+                        .map(selectedAccount => (
+                          <div key={selectedAccount.id} className="space-y-3 text-base">
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">Account Holder:</span> 
+                              {selectedAccount.account_holder_name}
+                            </p>
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">Bank Name:</span> 
+                              {selectedAccount.bank_name}
+                            </p>
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">Account Number:</span> 
+                              {selectedAccount.account_number}
+                            </p>
+                            <p className="text-gray-700">
+                              <span className="font-semibold text-gray-900 mr-2">IFSC Code:</span> 
+                              {selectedAccount.ifsc_code}
+                            </p>
+                          </div>
+                        ))}
+                    </div>
+                  )}
+
+                  <div className={paymentDetails[index].payment_type === 'bank' ? 'col-span-2' : ''}>
+                    <label className="block text-sm font-medium text-gray-700">Payment Amount</label>
+                    <input
+                      type="number"
+                      value={paymentDetails[index].payment_amount}
+                      onChange={(e) => handlePaymentDetailsChange(index, 'payment_amount', e.target.value)}
+                      className="mt-1 block w-full rounded-md border-gray-300"
+                      max={settlement.balance}
+                      required
+                    />
+                  </div>
+
+                  <div className="col-span-2">
+                    <label className="block text-sm font-medium text-gray-700">Notes</label>
+                    <textarea
+                      value={paymentDetails[index].notes}
+                      onChange={(e) => handlePaymentDetailsChange(index, 'notes', e.target.value)}
+                      className="mt-1 block w-full rounded-md border-gray-300"
+                      rows="2"
+                    />
+                  </div>
+                </div>
+
+                {/* Balance Summary */}
+                <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
+                  <div>
+                    <span className="font-medium">Pending: </span>
+                    ₹{settlement.balance.toFixed(2)}
+                  </div>
+                  <div>
+                    <span className="font-medium">Payment: </span>
+                    ₹{(parseFloat(paymentDetails[index].payment_amount) || 0).toFixed(2)}
+                  </div>
+                  <div>
+                    <span className="font-medium">Remaining: </span>
+                    ₹{settlement.remainingBalance.toFixed(2)}
+                  </div>
+                </div>
+
+                {/* Process Button */}
+                <div className="flex justify-end space-x-2">
+                  <button
+                    onClick={() => refreshCustomerData(index)}
+                    className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
                   >
-                    <option value="bank">Bank Transfer</option>
-                    <option value="upi">UPI</option>
-                  </select>
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Bank Account</label>
-                  <select
-                    value={paymentDetails[index].bank_account_id}
-                    onChange={(e) => handlePaymentDetailsChange(index, 'bank_account_id', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300"
-                    required
+                    Refresh
+                  </button>
+                  <button
+                    onClick={() => handleSingleSettlement(index)}
+                    disabled={paymentDetails[index].isProcessing || 
+                              !paymentDetails[index].payment_amount || 
+                              !paymentDetails[index].bank_account_id || 
+                              !paymentDetails[index].transaction_id}
+                    className={`${
+                      paymentDetails[index].isProcessing || 
+                      !paymentDetails[index].payment_amount || 
+                      !paymentDetails[index].bank_account_id || 
+                      !paymentDetails[index].transaction_id
+                        ? 'bg-gray-400 cursor-not-allowed' 
+                        : 'bg-green-600 hover:bg-green-700'
+                    } text-white px-4 py-2 rounded-md transition-colors ml-2`}
                   >
-                    <option value="">Select Bank Account</option>
-                    {settlement.bankAccounts.map(account => (
-                      <option key={account.id} value={account.id}>
-                        {account.bank_name} - {account.account_number}
-                      </option>
-                    ))}
-                  </select>
+                    {paymentDetails[index].isProcessing ? 'Processing...' : 'Process Payment'}
+                  </button>
                 </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Transaction ID</label>
-                  <input
-                    type="text"
-                    value={paymentDetails[index].transaction_id}
-                    onChange={(e) => handlePaymentDetailsChange(index, 'transaction_id', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300"
-                    required
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700">Payment Amount</label>
-                  <input
-                    type="number"
-                    value={paymentDetails[index].payment_amount}
-                    onChange={(e) => handlePaymentDetailsChange(index, 'payment_amount', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300"
-                    max={settlement.balance}
-                    required
-                  />
-                </div>
-
-                <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Notes</label>
-                  <textarea
-                    value={paymentDetails[index].notes}
-                    onChange={(e) => handlePaymentDetailsChange(index, 'notes', e.target.value)}
-                    className="mt-1 block w-full rounded-md border-gray-300"
-                    rows="2"
-                  />
-                </div>
-              </div>
-
-              {/* Balance Summary */}
-              <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
-                <div>
-                  <span className="font-medium">Pending: </span>
-                  ₹{settlement.balance.toFixed(2)}
-                </div>
-                <div>
-                  <span className="font-medium">Payment: </span>
-                  ₹{(parseFloat(paymentDetails[index].payment_amount) || 0).toFixed(2)}
-                </div>
-                <div>
-                  <span className="font-medium">Remaining: </span>
-                  ₹{settlement.remainingBalance.toFixed(2)}
-                </div>
-              </div>
-
-              {/* Process Button */}
-              <div className="flex justify-end space-x-2">
-                <button
-                  onClick={() => refreshCustomerData(index)}
-                  className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
-                >
-                  Refresh
-                </button>
-                <button
-                  onClick={() => handleSingleSettlement(index)}
-                  disabled={paymentDetails[index].isProcessing || 
-                            !paymentDetails[index].payment_amount || 
-                            !paymentDetails[index].bank_account_id || 
-                            !paymentDetails[index].transaction_id}
-                  className={`${
-                    paymentDetails[index].isProcessing || 
-                    !paymentDetails[index].payment_amount || 
-                    !paymentDetails[index].bank_account_id || 
-                    !paymentDetails[index].transaction_id
-                      ? 'bg-gray-400 cursor-not-allowed' 
-                      : 'bg-green-600 hover:bg-green-700'
-                  } text-white px-4 py-2 rounded-md transition-colors ml-2`}
-                >
-                  {paymentDetails[index].isProcessing ? 'Processing...' : 'Process Payment'}
-                </button>
               </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </div>
 
-      {/* Add Grand Total Summary */}
-      <div className="mt-8 bg-white p-6 rounded-lg shadow">
-        <h2 className="text-xl font-semibold mb-4">Grand Total Summary</h2>
-        <div className="grid grid-cols-3 gap-6">
-          <div className="bg-blue-50 p-4 rounded-lg">
-            <p className="text-sm text-blue-600 font-medium">Total Pending</p>
-            <p className="text-2xl font-bold text-blue-700">
-              ₹{settlements.reduce((sum, s) => sum + s.balance, 0).toFixed(2)}
-            </p>
+      {/* New Total Summary Fixed Panel */}
+      <div className="lg:fixed lg:top-6 lg:right-6 lg:w-[300px] 
+                      fixed bottom-0 left-0 right-0 lg:bottom-auto lg:left-auto
+                      bg-white lg:p-4 p-2 rounded-lg shadow-lg z-50">
+        <h2 className="text-xl font-semibold mb-4 lg:block hidden">Summary</h2>
+        <div className="lg:grid lg:grid-cols-1 lg:gap-3 flex justify-between items-center">
+          {/* For large screens - vertical layout */}
+          <div className="lg:block hidden">
+            <div className="bg-blue-50 p-3 rounded-lg mb-3">
+              <p className="text-sm text-blue-600 font-medium">Total Pending</p>
+              <p className="text-xl font-bold text-blue-700">
+                ₹{settlements.reduce((sum, s) => sum + s.balance, 0).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="bg-green-50 p-3 rounded-lg mb-3">
+              <p className="text-sm text-green-600 font-medium">Total Payment</p>
+              <p className="text-xl font-bold text-green-700">
+                ₹{settlements.reduce((sum, _, idx) => 
+                  sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="bg-yellow-50 p-3 rounded-lg mb-3">
+              <p className="text-sm text-yellow-600 font-medium">Total Remaining</p>
+              <p className="text-xl font-bold text-yellow-700">
+                ₹{settlements.reduce((sum, s, idx) => 
+                  sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="text-sm text-gray-500 mt-2">
+              <p>Total Customers: {settlements.length}</p>
+              <p>Pending Settlements: {settlements.filter(s => s.balance > 0).length}</p>
+            </div>
           </div>
 
-          <div className="bg-green-50 p-4 rounded-lg">
-            <p className="text-sm text-green-600 font-medium">Total Payment Amount</p>
-            <p className="text-2xl font-bold text-green-700">
-              ₹{settlements.reduce((sum, _, idx) => 
-                sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0).toFixed(2)}
-            </p>
-          </div>
+          {/* For mobile screens - horizontal layout */}
+          <div className="lg:hidden flex justify-between items-center w-full">
+            <div className="text-center px-2">
+              <p className="text-xs text-blue-600 font-medium">Pending</p>
+              <p className="text-sm font-bold text-blue-700">
+                ₹{settlements.reduce((sum, s) => sum + s.balance, 0).toFixed(2)}
+              </p>
+            </div>
 
-          <div className="bg-yellow-50 p-4 rounded-lg">
-            <p className="text-sm text-yellow-600 font-medium">Total Remaining</p>
-            <p className="text-2xl font-bold text-yellow-700">
-              ₹{settlements.reduce((sum, s, idx) => 
-                sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0).toFixed(2)}
-            </p>
-          </div>
-        </div>
+            <div className="text-center px-2">
+              <p className="text-xs text-green-600 font-medium">Payment</p>
+              <p className="text-sm font-bold text-green-700">
+                ₹{settlements.reduce((sum, _, idx) => 
+                  sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0).toFixed(2)}
+              </p>
+            </div>
 
-        <div className="mt-4 text-sm text-gray-500">
-          <p>Total Customers: {settlements.length}</p>
-          <p>Pending Settlements: {settlements.filter(s => s.balance > 0).length}</p>
+            <div className="text-center px-2">
+              <p className="text-xs text-yellow-600 font-medium">Remaining</p>
+              <p className="text-sm font-bold text-yellow-700">
+                ₹{settlements.reduce((sum, s, idx) => 
+                  sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0).toFixed(2)}
+              </p>
+            </div>
+
+            <div className="text-center px-2">
+              <p className="text-xs text-gray-600">Customers</p>
+              <p className="text-sm font-bold text-gray-700">{settlements.length}</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
