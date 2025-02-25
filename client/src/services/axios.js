@@ -15,10 +15,16 @@ export const setSessionTimeoutCallback = (callback) => {
 
 instance.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Skip adding token for authentication endpoints
+    const isAuthRequest = config.url.includes('/login/') || config.url.includes('/token/refresh/');
+    
+    if (!isAuthRequest) {
+      const token = localStorage.getItem('access_token');
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
+    console.log('Request headers before sending:', config.headers);
     return config;
   },
   (error) => {
@@ -59,6 +65,7 @@ instance.interceptors.response.use(
       }
     }
 
+    console.error('Response error:', error.response?.status, error.response?.data);
     return Promise.reject(error);
   }
 );
