@@ -1,6 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../services/axios';
 import { toast } from 'react-toastify';
+import DatePicker from 'react-datepicker';
+import { exportToExcel, exportToPDF } from '../../utils/exportUtils';
+import "react-datepicker/dist/react-datepicker.css";
 
 const TIME_FRAMES = [
   { value: 'today', label: "Today's Data" },
@@ -16,24 +19,43 @@ export default function AllTransactionsHistory({ customerId }) {
   const [timeFrame, setTimeFrame] = useState('today');
   const [selectedQualityTypes, setSelectedQualityTypes] = useState([]);
   const [selectedPaymentTypes, setSelectedPaymentTypes] = useState([]);
-  const [activeView, setActiveView] = useState('purchases'); // 'purchases' or 'payments'
+  const [activeView, setActiveView] = useState('purchases');
   const [transactions, setTransactions] = useState([]);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(false);
+  const [startDate, setStartDate] = useState(null);
+  const [endDate, setEndDate] = useState(null);
 
   const fetchTransactions = async () => {
     try {
       setLoading(true);
       const params = new URLSearchParams();
-      params.append('timeFrame', timeFrame);
       
-      if (timeFrame === 'today') {
-        const today = new Date();
-        const year = today.getFullYear();
-        const month = String(today.getMonth() + 1).padStart(2, '0');
-        const day = String(today.getDate()).padStart(2, '0');
-        const formattedDate = `${year}-${month}-${day}`;
-        params.append('date', formattedDate);
+      if (startDate && endDate) {
+        // Format dates for API
+        const formatDate = (date) => {
+          const year = date.getFullYear();
+          const month = String(date.getMonth() + 1).padStart(2, '0');
+          const day = String(date.getDate()).padStart(2, '0');
+          return `${year}-${month}-${day}`;
+        };
+        
+        params.append('startDate', formatDate(startDate));
+        params.append('endDate', formatDate(endDate));
+        params.append('filterType', 'date_range');
+      } else {
+        params.append('timeFrame', timeFrame);
+        params.append('filterType', 'time_frame');
+        
+        if (timeFrame === 'today') {
+          const today = new Date();
+          const year = today.getFullYear();
+          const month = String(today.getMonth() + 1).padStart(2, '0');
+          const day = String(today.getDate()).padStart(2, '0');
+          const formattedDate = `${year}-${month}-${day}`;
+          params.append('date', formattedDate);
+        }
       }
       
       if (customerId) {
@@ -43,12 +65,24 @@ export default function AllTransactionsHistory({ customerId }) {
       if (activeView === 'purchases') {
         selectedQualityTypes.forEach(type => params.append('qualityTypes[]', type));
         const response = await axios.get(`/api/transactions/insights?${params.toString()}`);
-        setTransactions(response.data.insights.map(t => ({ ...t, type: 'purchase' })));
+        const formattedData = response.data.insights.map(t => ({ 
+          ...t, 
+          type: 'purchase',
+          transaction_date: new Date(t.transaction_date) // Ensure date is properly parsed
+        }));
+        setTransactions(formattedData);
+        setFilteredTransactions([]); // Clear any existing filters
         setSummary(response.data.summary);
       } else {
         selectedPaymentTypes.forEach(type => params.append('paymentTypes[]', type));
         const response = await axios.get(`/api/transactions/payment-insights?${params.toString()}`);
-        setTransactions(response.data.insights.map(t => ({ ...t, type: 'payment' })));
+        const formattedData = response.data.insights.map(t => ({ 
+          ...t, 
+          type: 'payment',
+          transaction_date: new Date(t.transaction_date) // Ensure date is properly parsed
+        }));
+        setTransactions(formattedData);
+        setFilteredTransactions([]); // Clear any existing filters
         setSummary(response.data.summary);
       }
     } catch (error) {
@@ -79,21 +113,135 @@ export default function AllTransactionsHistory({ customerId }) {
     );
   };
 
+  const handleDateFilter = () => {
+    if (!startDate || !endDate) {
+      toast.warning('Please select both start and end dates');
+      return;
+    }
+
+    if (endDate < startDate) {
+      toast.error('End date cannot be before start date');
+      return;
+    }
+
+    // Reset timeFrame when using date filter
+    setTimeFrame('');
+    fetchTransactions();
+  };
+
+  const clearDateFilter = () => {
+    setStartDate(null);
+    setEndDate(null);
+    setTimeFrame('today'); // Reset to default timeFrame
+    setFilteredTransactions([]); // Clear filtered transactions
+  };
+
+  const calculateFilteredSummary = (filteredData) => {
+    if (activeView === 'purchases') {
+      return {
+        total_purchases: filteredData.length,
+        total_amount: filteredData.reduce((sum, tx) => sum + (tx.total_amount || 0), 0),
+        total_quantity: filteredData.reduce((sum, tx) => sum + (tx.quantity || 0), 0)
+      };
+    } else {
+      const paymentTypes = filteredData.map(tx => tx.payment_type);
+      const mostCommonType = paymentTypes.length > 0 
+        ? paymentTypes.sort((a,b) =>
+            paymentTypes.filter(v => v === a).length
+            - paymentTypes.filter(v => v === b).length
+          ).pop()
+        : '-';
+
+      return {
+        total_payments: filteredData.length,
+        total_amount: filteredData.reduce((sum, tx) => sum + (tx.amount_paid || 0), 0),
+        most_common_type: mostCommonType
+      };
+    }
+  };
+
+  // Get the current data to display (filtered or all)
+  const getCurrentData = () => {
+    if (startDate && endDate) {
+      return transactions.filter(transaction => {
+        const txDate = new Date(transaction.transaction_date);
+        return txDate >= startDate && txDate <= endDate;
+      });
+    }
+    return transactions;
+  };
+
+  const currentData = getCurrentData();
+  const currentSummary = currentData !== transactions ? calculateFilteredSummary(currentData) : summary;
+
+  const prepareExportData = (transactions) => {
+    return transactions.map(tx => ({
+      Date: new Date(tx.transaction_date).toLocaleDateString(),
+      Time: tx.transaction_time,
+      'Customer Name': tx.customer_name,
+      'Transaction Type': tx.type === 'purchase' ? 'Stock Purchase' : 'Payment',
+      ...(tx.type === 'purchase' ? {
+        'Quality Type': tx.quality_type,
+        'Quantity': tx.quantity,
+        'Rate': tx.rate,
+        'Total Amount': tx.total_amount,
+        'Payment Status': tx.payment_status
+      } : {
+        'Payment Type': tx.payment_type,
+        'Transaction ID': tx.transaction_id || '-',
+        'Amount Paid': tx.amount_paid
+      }),
+      Notes: tx.notes || '-'
+    }));
+  };
+
+  const handleExport = (type) => {
+    const dataToExport = prepareExportData(currentData);
+    const dateStr = startDate && endDate 
+      ? `${startDate.toLocaleDateString()}_to_${endDate.toLocaleDateString()}`
+      : timeFrame;
+    const fileName = `${activeView}_transactions_${dateStr}`;
+    
+    if (type === 'excel') {
+      exportToExcel(dataToExport, fileName);
+    } else {
+      const summaryData = {
+        ...(activeView === 'purchases' ? {
+          'Total Purchases': currentSummary.total_purchases || 0,
+          'Total Amount': `₹${(currentSummary.total_amount || 0).toFixed(2)}`,
+          'Total Quantity': (currentSummary.total_quantity || 0).toFixed(2)
+        } : {
+          'Total Payments': currentSummary.total_payments || 0,
+          'Total Amount': `₹${(currentSummary.total_amount || 0).toFixed(2)}`,
+          'Most Common Type': currentSummary.most_common_type || '-'
+        })
+      };
+
+      exportToPDF(dataToExport, fileName, {
+        title: `${activeView.charAt(0).toUpperCase() + activeView.slice(1)} History`,
+        dateRange: startDate && endDate ? 
+          `${startDate.toLocaleDateString()} to ${endDate.toLocaleDateString()}` : 
+          `Time Frame: ${timeFrame}`,
+        summary: summaryData
+      });
+    }
+  };
+
   const renderSummaryCards = () => {
     if (activeView === 'purchases') {
       return (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Purchases</h3>
-            <p className="text-2xl font-semibold">{summary.total_purchases || 0}</p>
+            <p className="text-2xl font-semibold">{currentSummary.total_purchases || 0}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <p className="text-2xl font-semibold">₹{(summary.total_amount || 0).toFixed(2)}</p>
+            <p className="text-2xl font-semibold">₹{(currentSummary.total_amount || 0).toFixed(2)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Quantity</h3>
-            <p className="text-2xl font-semibold">{(summary.total_quantity || 0).toFixed(2)}</p>
+            <p className="text-2xl font-semibold">{(currentSummary.total_quantity || 0).toFixed(2)}</p>
           </div>
         </div>
       );
@@ -102,15 +250,15 @@ export default function AllTransactionsHistory({ customerId }) {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Payments</h3>
-            <p className="text-2xl font-semibold">{summary.total_payments || 0}</p>
+            <p className="text-2xl font-semibold">{currentSummary.total_payments || 0}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <p className="text-2xl font-semibold">₹{(summary.total_amount || 0).toFixed(2)}</p>
+            <p className="text-2xl font-semibold">₹{(currentSummary.total_amount || 0).toFixed(2)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Most Common Type</h3>
-            <p className="text-2xl font-semibold capitalize">{summary.most_common_type || '-'}</p>
+            <p className="text-2xl font-semibold capitalize">{currentSummary.most_common_type || '-'}</p>
           </div>
         </div>
       );
@@ -197,6 +345,56 @@ export default function AllTransactionsHistory({ customerId }) {
         )}
       </div>
 
+      <div className="flex items-center space-x-4">
+        <div className="flex items-center space-x-2">
+          <DatePicker
+            selected={startDate}
+            onChange={date => setStartDate(date)}
+            placeholderText="Start Date"
+            className="px-2 py-1 border rounded"
+            maxDate={endDate || new Date()}
+            dateFormat="dd/MM/yyyy"
+          />
+          <DatePicker
+            selected={endDate}
+            onChange={date => setEndDate(date)}
+            placeholderText="End Date"
+            className="px-2 py-1 border rounded"
+            minDate={startDate}
+            maxDate={new Date()}
+            dateFormat="dd/MM/yyyy"
+          />
+          <button
+            onClick={handleDateFilter}
+            className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Filter
+          </button>
+          {(startDate || endDate) && (
+            <button
+              onClick={clearDateFilter}
+              className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+        <div className="flex space-x-2">
+          <button
+            onClick={() => handleExport('excel')}
+            className="px-3 py-1 bg-green-500 text-white rounded hover:bg-green-600"
+          >
+            Export Excel
+          </button>
+          <button
+            onClick={() => handleExport('pdf')}
+            className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600"
+          >
+            Export PDF
+          </button>
+        </div>
+      </div>
+
       {renderSummaryCards()}
 
       <div className="border rounded-lg">
@@ -228,14 +426,14 @@ export default function AllTransactionsHistory({ customerId }) {
                 <tr>
                   <td colSpan={activeView === 'purchases' ? 8 : 7} className="px-6 py-4 text-center">Loading...</td>
                 </tr>
-              ) : transactions.length === 0 ? (
+              ) : currentData.length === 0 ? (
                 <tr>
                   <td colSpan={activeView === 'purchases' ? 8 : 7} className="px-6 py-4 text-center">
                     No {activeView} found for the selected filters.
                   </td>
                 </tr>
               ) : (
-                transactions.map((transaction, index) => (
+                currentData.map((transaction, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(transaction.transaction_date).toLocaleDateString()}
