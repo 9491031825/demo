@@ -1076,3 +1076,26 @@ def get_pending_transactions(request, customer_id):
         
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def set_default_bank_account(request, customer_id, account_id):
+    try:
+        # Verify customer belongs to current user
+        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        bank_account = get_object_or_404(BankAccount, id=account_id, customer=customer)
+        
+        # Remove default status from all other accounts
+        BankAccount.objects.filter(customer=customer, is_default=True).update(is_default=False)
+        
+        # Set the selected account as default
+        bank_account.is_default = True
+        bank_account.save()
+        
+        return Response({
+            'message': 'Default bank account updated successfully',
+            'bank_account': BankAccountSerializer(bank_account).data
+        })
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)

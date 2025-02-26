@@ -10,6 +10,7 @@ from .views import (
     create_bulk_payment,
     get_payment_insights,
     get_pending_transactions,
+    set_default_bank_account,
 )
 
 urlpatterns = [
@@ -26,6 +27,7 @@ urlpatterns = [
     path('api/customers/<int:customer_id>/transactions/', get_transactions, name='get_transactions'),
     path('api/customers/<int:customer_id>/bank-accounts/', get_customer_bank_accounts, name='get_customer_bank_accounts'),
     path('api/customers/<int:customer_id>/bank-accounts/add/', add_bank_account, name='add_bank_account'),
+    path('api/customers/<int:customer_id>/bank-accounts/<int:account_id>/set-default/', set_default_bank_account, name='set_default_bank_account'),
     path('api/transactions/stock/create/', create_stock_transaction, name='create_stock_transaction'),
     path('api/transactions/payment/create/', create_payment_transaction, name='create_payment_transaction'),
     path('api/transactions/<int:transaction_id>/', get_transaction_details, name='get_transaction_details'),

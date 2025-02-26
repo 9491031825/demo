@@ -21,6 +21,9 @@ export default function CustomerDetailsPage() {
   const [paymentAllocations, setPaymentAllocations] = useState({});
   const [expandedPayment, setExpandedPayment] = useState(null);
   const [currentDateRange, setCurrentDateRange] = useState(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [pageSize] = useState(25);
 
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -28,17 +31,17 @@ export default function CustomerDetailsPage() {
         setLoading(true);
         const [customerResponse, transactionsResponse, balanceResponse, bankAccountsResponse] = await Promise.all([
           axios.get(`/api/customers/${customerId}/`),
-          customerAPI.getTransactions(customerId),
+          customerAPI.getTransactions(customerId, currentPage, pageSize),
           axios.get(`/api/customers/${customerId}/balance/`),
           axios.get(`/api/customers/${customerId}/bank-accounts/`)
         ]);
 
         setCustomer(customerResponse.data);
         setTransactions(transactionsResponse.results);
-        setBalance(balanceResponse.data);
+        setTotalPages(Math.ceil(transactionsResponse.count / pageSize));
         setBankAccounts(bankAccountsResponse.data);
+        setBalance(balanceResponse.data);
         
-        // Process transactions to identify payment allocations
         processPaymentAllocations(transactionsResponse.results);
       } catch (error) {
         console.error('Error fetching customer data:', error);
@@ -49,7 +52,7 @@ export default function CustomerDetailsPage() {
     };
 
     fetchCustomerData();
-  }, [customerId]);
+  }, [customerId, currentPage, pageSize]);
 
   const formatDate = (date) => {
     return new Date(date).toLocaleDateString('en-IN');
@@ -65,6 +68,7 @@ export default function CustomerDetailsPage() {
   const handleFilterApplied = async (dateFilter) => {
     try {
       setLoading(true);
+      setCurrentPage(1); // Reset to first page when filter is applied
       
       if (dateFilter) {
         // Format dates for API
@@ -83,12 +87,18 @@ export default function CustomerDetailsPage() {
         };
         
         // Use the API service with filters
-        const transactionsResponse = await customerAPI.getTransactions(customerId, 1, 100, filters);
+        const transactionsResponse = await customerAPI.getTransactions(
+          customerId, 
+          1, 
+          pageSize, 
+          filters
+        );
         
         console.log('Filtered transactions response:', transactionsResponse);
         
         // Set filtered transactions
         setFilteredTransactions(transactionsResponse.results);
+        setTotalPages(Math.ceil(transactionsResponse.count / pageSize));
         
         // Process payment allocations for filtered transactions
         processPaymentAllocations(transactionsResponse.results);
@@ -106,8 +116,9 @@ export default function CustomerDetailsPage() {
         }
       } else {
         // When filter is cleared, fetch all transactions
-        const transactionsResponse = await customerAPI.getTransactions(customerId);
+        const transactionsResponse = await customerAPI.getTransactions(customerId, 1, pageSize);
         setTransactions(transactionsResponse.results);
+        setTotalPages(Math.ceil(transactionsResponse.count / pageSize));
         setFilteredTransactions(null);
         setCurrentDateRange(null);
         
@@ -122,6 +133,10 @@ export default function CustomerDetailsPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handlePageChange = (newPage) => {
+    setCurrentPage(newPage);
   };
 
   const prepareExportData = (transactions) => {
@@ -256,9 +271,30 @@ export default function CustomerDetailsPage() {
                     <p className="text-gray-600">IFSC Code: {account.ifsc_code}</p>
                     <p className="text-gray-600">Account Holder: {account.account_holder_name}</p>
                   </div>
-                  <div className="text-sm text-gray-500">
-                    <p>Branch: {account.branch_name}</p>
-                    <p>Type: {account.account_type}</p>
+                  <div className="flex flex-col space-y-2">
+                    <div className="text-sm text-gray-500">
+                      <p>Branch: {account.branch_name}</p>
+                      <p>Type: {account.account_type}</p>
+                    </div>
+                    {!account.is_default && (
+                      <button
+                        onClick={async () => {
+                          try {
+                            await customerAPI.setDefaultBankAccount(customerId, account.id);
+                            // Refresh bank accounts after setting new default
+                            const updatedAccounts = await customerAPI.getBankAccounts(customerId);
+                            setBankAccounts(updatedAccounts);
+                            toast.success('Default bank account updated successfully');
+                          } catch (error) {
+                            console.error('Error setting default bank account:', error);
+                            toast.error('Failed to update default bank account');
+                          }
+                        }}
+                        className="text-sm text-blue-600 hover:text-blue-800 bg-blue-50 hover:bg-blue-100 px-3 py-1 rounded-md transition-colors"
+                      >
+                        Set as Default
+                      </button>
+                    )}
                   </div>
                 </div>
               </div>
@@ -270,6 +306,42 @@ export default function CustomerDetailsPage() {
       )}
     </div>
   );
+
+  const renderPagination = () => {
+    if (totalPages <= 1) return null;
+
+    return (
+      <div className="flex justify-center items-center space-x-2 py-4 bg-white border-t">
+        <button
+          onClick={() => handlePageChange(currentPage - 1)}
+          disabled={currentPage === 1}
+          className={`px-3 py-1 rounded ${
+            currentPage === 1
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-blue-500 text-white hover:bg-blue-600'
+          }`}
+        >
+          Previous
+        </button>
+        
+        <span className="text-gray-600">
+          Page {currentPage} of {totalPages}
+        </span>
+        
+        <button
+          onClick={() => handlePageChange(currentPage + 1)}
+          disabled={currentPage === totalPages}
+          className={`px-3 py-1 rounded ${
+            currentPage === totalPages
+              ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+              : 'bg-blue-500 text-white hover:bg-blue-600'
+          }`}
+        >
+          Next
+        </button>
+      </div>
+    );
+  };
 
   if (loading) {
     return <div className="text-center py-8">Loading...</div>;
@@ -510,6 +582,8 @@ export default function CustomerDetailsPage() {
             </div>
           ) : null}
         </div>
+        
+        {renderPagination()}
       </div>
     </div>
   );

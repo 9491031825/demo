@@ -82,6 +82,16 @@ export const customerAPI = {
     }
   },
 
+  setDefaultBankAccount: async (customerId, accountId) => {
+    try {
+      const response = await axios.post(`/api/customers/${customerId}/bank-accounts/${accountId}/set-default/`);
+      return response.data;
+    } catch (error) {
+      console.error('Set default bank account error:', error);
+      throw error.response?.data || error;
+    }
+  },
+
   addBankAccount: async (customerId, bankAccountData) => {
     try {
       const response = await axios.post(`/api/customers/${customerId}/bank-accounts/add/`, bankAccountData);
