@@ -68,3 +68,4 @@ coverage.xml
 *~
 *.swp
 .venv/
+node_modules/

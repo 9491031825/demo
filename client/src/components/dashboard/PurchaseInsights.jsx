@@ -11,7 +11,7 @@ const TIME_FRAMES = [
 
 const QUALITY_TYPES = ['Type 1', 'Type 2', 'Type 3'];
 
-export default function PurchaseInsights() {
+export default function PurchaseInsights({ customerId }) {
   const [timeFrame, setTimeFrame] = useState('today');
   const [selectedQualityTypes, setSelectedQualityTypes] = useState([]);
   const [insights, setInsights] = useState([]);
@@ -24,6 +24,9 @@ export default function PurchaseInsights() {
       const params = new URLSearchParams();
       params.append('timeFrame', timeFrame);
       selectedQualityTypes.forEach(type => params.append('qualityTypes[]', type));
+      if (customerId) {
+        params.append('customerId', customerId);
+      }
       
       const response = await axios.get(`/api/transactions/insights?${params.toString()}`);
       setInsights(response.data.insights);
@@ -38,7 +41,7 @@ export default function PurchaseInsights() {
 
   useEffect(() => {
     fetchInsights();
-  }, [timeFrame, selectedQualityTypes]);
+  }, [timeFrame, selectedQualityTypes, customerId]);
 
   const handleQualityTypeChange = (type) => {
     setSelectedQualityTypes(prev => 

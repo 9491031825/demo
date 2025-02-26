@@ -3,17 +3,14 @@ import axios from '../../services/axios';
 import { toast } from 'react-toastify';
 
 const TIME_FRAMES = [
-  { value: 'today', label: "Today's Payments" },
+  { value: 'today', label: "Today's Transactions" },
   { value: 'weekly', label: 'Weekly' },
   { value: 'monthly', label: 'Monthly' },
   { value: 'all', label: 'All Time' }
 ];
 
-const PAYMENT_TYPES = ['cash', 'bank', 'upi'];
-
-export default function PaymentInsights({ customerId }) {
+export default function TransactionInsights({ customerId }) {
   const [timeFrame, setTimeFrame] = useState('today');
-  const [selectedPaymentTypes, setSelectedPaymentTypes] = useState([]);
   const [insights, setInsights] = useState([]);
   const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(false);
@@ -33,16 +30,17 @@ export default function PaymentInsights({ customerId }) {
         params.append('date', formattedDate);
       }
       
-      selectedPaymentTypes.forEach(type => params.append('paymentTypes[]', type));
+      let response;
       if (customerId) {
-        params.append('customerId', customerId);
+        response = await axios.get(`/api/customers/${customerId}/transactions/?${params.toString()}`);
+      } else {
+        response = await axios.get(`/api/transactions/?${params.toString()}`);
       }
       
-      const response = await axios.get(`/api/transactions/payment-insights?${params.toString()}`);
-      setInsights(response.data.insights);
-      setSummary(response.data.summary);
+      setInsights(response.data.results || []);
+      setSummary(response.data.summary || {});
     } catch (error) {
-      toast.error('Failed to fetch payment insights');
+      toast.error('Failed to fetch transaction insights');
       console.error('Error fetching insights:', error);
     } finally {
       setLoading(false);
@@ -51,21 +49,13 @@ export default function PaymentInsights({ customerId }) {
 
   useEffect(() => {
     fetchInsights();
-  }, [timeFrame, selectedPaymentTypes, customerId]);
-
-  const handlePaymentTypeChange = (type) => {
-    setSelectedPaymentTypes(prev => 
-      prev.includes(type)
-        ? prev.filter(t => t !== type)
-        : [...prev, type]
-    );
-  };
+  }, [timeFrame, customerId]);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow mt-6">
-      <h2 className="text-xl font-semibold mb-4">Payment Insights</h2>
+      <h2 className="text-xl font-semibold mb-4">Transaction Insights</h2>
       
-      {/* Filters */}
+      {/* Time Frame Filters */}
       <div className="flex flex-wrap gap-4 mb-6">
         <div className="space-x-2">
           {TIME_FRAMES.map(({ value, label }) => (
@@ -82,70 +72,48 @@ export default function PaymentInsights({ customerId }) {
             </button>
           ))}
         </div>
-        
-        <div className="flex gap-2 items-center">
-          <span className="text-gray-700">Payment Type:</span>
-          {PAYMENT_TYPES.map(type => (
-            <label key={type} className="inline-flex items-center">
-              <input
-                type="checkbox"
-                checked={selectedPaymentTypes.includes(type)}
-                onChange={() => handlePaymentTypeChange(type)}
-                className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              />
-              <span className="ml-2 capitalize">{type}</span>
-            </label>
-          ))}
-        </div>
       </div>
 
-      {/* Summary Cards in a Scrollable Container */}
+      {/* Summary Cards */}
       <div className="overflow-x-auto mb-6">
         <div className="flex gap-4 min-w-max pb-2">
           <div className="bg-gray-50 p-4 rounded-lg w-64">
-            <h3 className="text-sm text-gray-500">Total Payments</h3>
-            <p className="text-2xl font-semibold">{summary.total_payments || 0}</p>
+            <h3 className="text-sm text-gray-500">Total Transactions</h3>
+            <p className="text-2xl font-semibold">{summary.total_transactions || 0}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
             <p className="text-2xl font-semibold">₹{(summary.total_amount || 0).toFixed(2)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
-            <h3 className="text-sm text-gray-500">Average Payment</h3>
-            <p className="text-2xl font-semibold">₹{(summary.average_payment || 0).toFixed(2)}</p>
-          </div>
-          <div className="bg-gray-50 p-4 rounded-lg w-64">
-            <h3 className="text-sm text-gray-500">Most Common Payment Type</h3>
-            <p className="text-2xl font-semibold capitalize">{summary.most_common_type || '-'}</p>
+            <h3 className="text-sm text-gray-500">Pending Amount</h3>
+            <p className="text-2xl font-semibold">₹{(summary.pending_amount || 0).toFixed(2)}</p>
           </div>
         </div>
       </div>
 
-      {/* Insights Table in a Scrollable Container */}
+      {/* Transactions Table */}
       <div className="border rounded-lg">
         <div className="max-h-[600px] overflow-auto">
           <table className="min-w-max w-full table-auto">
             <thead className="bg-gray-50 sticky top-0 z-10">
               <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Date & Time
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
-                  Customer Name
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Type
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                  Payment Type
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Details
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
-                  Bank Account
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
-                  Transaction ID
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Amount
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Notes
                 </th>
               </tr>
@@ -153,14 +121,14 @@ export default function PaymentInsights({ customerId }) {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center">
+                  <td colSpan="6" className="px-6 py-4 text-center">
                     Loading...
                   </td>
                 </tr>
               ) : insights.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center">
-                    No payments found for the selected filters.
+                  <td colSpan="6" className="px-6 py-4 text-center">
+                    No transactions found for the selected filters.
                   </td>
                 </tr>
               ) : (
@@ -173,20 +141,47 @@ export default function PaymentInsights({ customerId }) {
                         {insight.transaction_time}
                       </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {insight.customer_name}
-                    </td>
                     <td className="px-6 py-4 whitespace-nowrap capitalize">
-                      {insight.payment_type}
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        insight.transaction_type === 'stock' 
+                          ? 'bg-blue-100 text-blue-800'
+                          : 'bg-green-100 text-green-800'
+                      }`}>
+                        {insight.transaction_type}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {insight.transaction_type === 'stock' ? (
+                        <div>
+                          <p className="font-medium">{insight.quality_type}</p>
+                          <p className="text-sm text-gray-500">
+                            Qty: {insight.quantity} @ ₹{insight.rate}
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className="font-medium capitalize">{insight.payment_type}</p>
+                          {insight.bank_account && (
+                            <p className="text-sm text-gray-500">
+                              {insight.bank_account.bank_name} - {insight.bank_account.account_number}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {insight.bank_account || '-'}
+                      ₹{insight.amount ? insight.amount.toFixed(2) : (insight.total || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {insight.transaction_id || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      ₹{insight.amount_paid.toFixed(2)}
+                      <span className={`px-2 py-1 rounded-full text-xs ${
+                        insight.payment_status === 'paid' 
+                          ? 'bg-green-100 text-green-800' 
+                          : insight.payment_status === 'partial'
+                          ? 'bg-yellow-100 text-yellow-800'
+                          : 'bg-red-100 text-red-800'
+                      }`}>
+                        {insight.payment_status}
+                      </span>
                     </td>
                     <td className="px-6 py-4">
                       {insight.notes || '-'}

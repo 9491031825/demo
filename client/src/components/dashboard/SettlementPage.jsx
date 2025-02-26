@@ -108,8 +108,8 @@ export default function SettlementPage() {
       updated[index] = {
         ...updated[index],
         [field]: value,
-        // Reset bank-related fields when switching to cash
-        ...(field === 'payment_type' && value === 'cash' && {
+        // Reset bank-related fields when switching to cash or UPI
+        ...(field === 'payment_type' && (value === 'cash' || value === 'upi') && {
           bank_account_id: '',
           transaction_id: ''
         })
@@ -128,9 +128,14 @@ export default function SettlementPage() {
       return;
     }
     
-    if (payment.payment_type !== 'cash' && (!payment.transaction_id || 
-      (payment.payment_type === 'bank' && !payment.bank_account_id))) {
-      toast.error('Please fill in all required payment details');
+    // Adjust validation for cash and UPI
+    if (payment.payment_type === 'bank' && (!payment.transaction_id || !payment.bank_account_id)) {
+      toast.error('Please fill in all required payment details for bank transfer');
+      return;
+    }
+
+    if (payment.payment_type === 'upi' && !payment.transaction_id) {
+      toast.error('Please provide a UPI Reference ID');
       return;
     }
 
@@ -152,8 +157,10 @@ export default function SettlementPage() {
         total: parseFloat(payment.payment_amount),
         amount_paid: parseFloat(payment.payment_amount),
         balance: 0,
-        transaction_id: payment.payment_type === 'cash' ? null : payment.transaction_id,
-        bank_account: payment.payment_type === 'bank' ? payment.bank_account_id : null,
+        // For cash payments, set both transaction_id and bank_account to empty string instead of null
+        transaction_id: payment.payment_type === 'cash' ? '' : payment.transaction_id,
+        bank_account: payment.payment_type === 'cash' ? '' : 
+                     (payment.payment_type === 'bank' ? payment.bank_account_id : null),
         notes: payment.notes || '',
         transaction_date: format(currentDate, 'yyyy-MM-dd'),
         transaction_time: format(currentDate, 'HH:mm:ss'),
@@ -304,7 +311,9 @@ export default function SettlementPage() {
                   {/* Show transaction ID field only for bank and UPI */}
                   {(paymentDetails[index].payment_type === 'bank' || paymentDetails[index].payment_type === 'upi') && (
                     <div>
-                      <label className="block text-sm font-medium text-gray-700">Transaction ID</label>
+                      <label className="block text-sm font-medium text-gray-700">
+                        {paymentDetails[index].payment_type === 'upi' ? 'UPI Reference ID' : 'Transaction ID'}
+                      </label>
                       <input
                         type="text"
                         value={paymentDetails[index].transaction_id}
@@ -394,13 +403,15 @@ export default function SettlementPage() {
                     onClick={() => handleSingleSettlement(index)}
                     disabled={paymentDetails[index].isProcessing || 
                               !paymentDetails[index].payment_amount || 
-                              !paymentDetails[index].bank_account_id || 
-                              !paymentDetails[index].transaction_id}
+                              (paymentDetails[index].payment_type === 'bank' && 
+                               (!paymentDetails[index].bank_account_id || !paymentDetails[index].transaction_id)) ||
+                              (paymentDetails[index].payment_type === 'upi' && !paymentDetails[index].transaction_id)}
                     className={`${
                       paymentDetails[index].isProcessing || 
                       !paymentDetails[index].payment_amount || 
-                      !paymentDetails[index].bank_account_id || 
-                      !paymentDetails[index].transaction_id
+                      (paymentDetails[index].payment_type === 'bank' && 
+                       (!paymentDetails[index].bank_account_id || !paymentDetails[index].transaction_id)) ||
+                      (paymentDetails[index].payment_type === 'upi' && !paymentDetails[index].transaction_id)
                         ? 'bg-gray-400 cursor-not-allowed' 
                         : 'bg-green-600 hover:bg-green-700'
                     } text-white px-4 py-2 rounded-md transition-colors ml-2`}

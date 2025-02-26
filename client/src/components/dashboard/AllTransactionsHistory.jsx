@@ -1,175 +1,288 @@
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from '../../services/axios';
-import debounce from 'lodash/debounce';
-import { useNavigate } from 'react-router-dom';
+import { toast } from 'react-toastify';
 
-export default function AllTransactionsHistory() {
+const TIME_FRAMES = [
+  { value: 'today', label: "Today's Data" },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+  { value: 'all', label: 'All Time' }
+];
+
+const QUALITY_TYPES = ['Type 1', 'Type 2', 'Type 3'];
+const PAYMENT_TYPES = ['cash', 'bank', 'upi'];
+
+export default function AllTransactionsHistory({ customerId }) {
+  const [timeFrame, setTimeFrame] = useState('today');
+  const [selectedQualityTypes, setSelectedQualityTypes] = useState([]);
+  const [selectedPaymentTypes, setSelectedPaymentTypes] = useState([]);
+  const [activeView, setActiveView] = useState('purchases'); // 'purchases' or 'payments'
   const [transactions, setTransactions] = useState([]);
+  const [summary, setSummary] = useState({});
   const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [page, setPage] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [totalRecords, setTotalRecords] = useState(0);
-  const navigate = useNavigate();
 
-  const fetchTransactions = async (query = '', pageNum = 1) => {
-    setLoading(true);
+  const fetchTransactions = async () => {
     try {
-      const response = await axios.get('/api/transactions/search/', {
-        params: {
-          query,
-          page: pageNum,
-          page_size: 10
-        }
-      });
-      setTransactions(response.data.results);
-      setTotalRecords(response.data.count);
-      setTotalPages(Math.ceil(response.data.count / 10));
+      setLoading(true);
+      const params = new URLSearchParams();
+      params.append('timeFrame', timeFrame);
+      
+      if (timeFrame === 'today') {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+        params.append('date', formattedDate);
+      }
+      
+      if (customerId) {
+        params.append('customerId', customerId);
+      }
+
+      if (activeView === 'purchases') {
+        selectedQualityTypes.forEach(type => params.append('qualityTypes[]', type));
+        const response = await axios.get(`/api/transactions/insights?${params.toString()}`);
+        setTransactions(response.data.insights.map(t => ({ ...t, type: 'purchase' })));
+        setSummary(response.data.summary);
+      } else {
+        selectedPaymentTypes.forEach(type => params.append('paymentTypes[]', type));
+        const response = await axios.get(`/api/transactions/payment-insights?${params.toString()}`);
+        setTransactions(response.data.insights.map(t => ({ ...t, type: 'payment' })));
+        setSummary(response.data.summary);
+      }
     } catch (error) {
-      console.error('Failed to fetch transactions:', error);
+      toast.error(`Failed to fetch ${activeView}`);
+      console.error('Error fetching transactions:', error);
     } finally {
       setLoading(false);
     }
   };
 
-  const debouncedSearch = useCallback(
-    debounce((query) => {
-      fetchTransactions(query);
-    }, 300),
-    []
-  );
-
   useEffect(() => {
-    debouncedSearch(searchTerm);
-  }, [searchTerm]);
+    fetchTransactions();
+  }, [timeFrame, selectedQualityTypes, selectedPaymentTypes, activeView, customerId]);
 
-  useEffect(() => {
-    fetchTransactions(searchTerm, page);
-  }, [page]);
+  const handleQualityTypeChange = (type) => {
+    setSelectedQualityTypes(prev => 
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const handlePaymentTypeChange = (type) => {
+    setSelectedPaymentTypes(prev => 
+      prev.includes(type)
+        ? prev.filter(t => t !== type)
+        : [...prev, type]
+    );
+  };
+
+  const renderSummaryCards = () => {
+    if (activeView === 'purchases') {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm text-gray-500">Total Purchases</h3>
+            <p className="text-2xl font-semibold">{summary.total_purchases || 0}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm text-gray-500">Total Amount</h3>
+            <p className="text-2xl font-semibold">₹{(summary.total_amount || 0).toFixed(2)}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm text-gray-500">Total Quantity</h3>
+            <p className="text-2xl font-semibold">{(summary.total_quantity || 0).toFixed(2)}</p>
+          </div>
+        </div>
+      );
+    } else {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm text-gray-500">Total Payments</h3>
+            <p className="text-2xl font-semibold">{summary.total_payments || 0}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm text-gray-500">Total Amount</h3>
+            <p className="text-2xl font-semibold">₹{(summary.total_amount || 0).toFixed(2)}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm text-gray-500">Most Common Type</h3>
+            <p className="text-2xl font-semibold capitalize">{summary.most_common_type || '-'}</p>
+          </div>
+        </div>
+      );
+    }
+  };
 
   return (
-    <div className="space-y-4">
-      <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">Transaction History</h2>
-        <div className="relative w-64">
-          <input
-            type="text"
-            className="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-indigo-500 focus:border-indigo-500"
-            placeholder="Search transactions..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-          {loading && (
-            <div className="absolute right-3 top-2">
-              <svg className="animate-spin h-5 w-5 text-gray-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-              </svg>
-            </div>
-          )}
+    <div className="bg-white p-6 rounded-lg shadow mt-6">
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-xl font-semibold">Transaction History</h2>
+        <div className="space-x-4">
+          <button
+            onClick={() => setActiveView('purchases')}
+            className={`px-4 py-2 rounded-md ${
+              activeView === 'purchases'
+                ? 'bg-indigo-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Purchases
+          </button>
+          <button
+            onClick={() => setActiveView('payments')}
+            className={`px-4 py-2 rounded-md ${
+              activeView === 'payments'
+                ? 'bg-green-600 text-white'
+                : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+            }`}
+          >
+            Payments
+          </button>
         </div>
-        <button
-          onClick={() => navigate('/dashboard')}
-          className="bg-gray-500 text-white px-4 py-2 rounded-md hover:bg-gray-600"
-        >
-          Back to Dashboard
-        </button>
+      </div>
+      
+      <div className="flex flex-wrap gap-4 mb-6">
+        <div className="space-x-2">
+          {TIME_FRAMES.map(({ value, label }) => (
+            <button
+              key={value}
+              onClick={() => setTimeFrame(value)}
+              className={`px-4 py-2 rounded-md ${
+                timeFrame === value
+                  ? 'bg-indigo-600 text-white'
+                  : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="min-w-full divide-y divide-gray-200">
-          <thead className="bg-gray-50">
-            <tr>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quality Type</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-            </tr>
-          </thead>
-          <tbody className="bg-white divide-y divide-gray-200">
-            {transactions.map((transaction) => (
-              <tr key={transaction.id}>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                  {new Date(transaction.created_at).toLocaleString()}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {transaction.customer.name}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {transaction.quality_type}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  {transaction.quantity} kg
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ₹{transaction.rate}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                  ₹{transaction.total}
-                </td>
-                <td className="px-6 py-4 whitespace-nowrap">
-                  <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                    transaction.payment_status === 'paid'
-                      ? 'bg-green-100 text-green-800'
-                      : 'bg-yellow-100 text-yellow-800'
-                  }`}>
-                    {transaction.payment_status}
-                  </span>
-                </td>
-              </tr>
+      <div className="mb-6">
+        {activeView === 'purchases' ? (
+          <div className="flex gap-2 items-center">
+            <span className="text-gray-700">Quality Type:</span>
+            {QUALITY_TYPES.map(type => (
+              <label key={type} className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  checked={selectedQualityTypes.includes(type)}
+                  onChange={() => handleQualityTypeChange(type)}
+                  className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
+                />
+                <span className="ml-2">{type}</span>
+              </label>
             ))}
-          </tbody>
-        </table>
+          </div>
+        ) : (
+          <div className="flex gap-2 items-center">
+            <span className="text-gray-700">Payment Type:</span>
+            {PAYMENT_TYPES.map(type => (
+              <label key={type} className="inline-flex items-center">
+                <input
+                  type="checkbox"
+                  checked={selectedPaymentTypes.includes(type)}
+                  onChange={() => handlePaymentTypeChange(type)}
+                  className="rounded border-gray-300 text-green-600 shadow-sm focus:border-green-300 focus:ring focus:ring-green-200 focus:ring-opacity-50"
+                />
+                <span className="ml-2 capitalize">{type}</span>
+              </label>
+            ))}
+          </div>
+        )}
       </div>
 
-      {/* Pagination */}
-      <div className="flex items-center justify-between border-t border-gray-200 bg-white px-4 py-3 sm:px-6">
-        <div className="flex flex-1 justify-between sm:hidden">
-          <button
-            onClick={() => setPage(page - 1)}
-            disabled={page === 1}
-            className="relative inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Previous
-          </button>
-          <button
-            onClick={() => setPage(page + 1)}
-            disabled={page === totalPages}
-            className="relative ml-3 inline-flex items-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-          >
-            Next
-          </button>
-        </div>
-        <div className="hidden sm:flex sm:flex-1 sm:items-center sm:justify-between">
-          <div>
-            <p className="text-sm text-gray-700">
-              Showing page <span className="font-medium">{page}</span> of{' '}
-              <span className="font-medium">{totalPages}</span> ({totalRecords} total records)
-            </p>
-          </div>
-          <div>
-            <nav className="isolate inline-flex -space-x-px rounded-md shadow-sm" aria-label="Pagination">
-              <button
-                onClick={() => setPage(page - 1)}
-                disabled={page === 1}
-                className="relative inline-flex items-center rounded-l-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
-              >
-                Previous
-              </button>
-              <button
-                onClick={() => setPage(page + 1)}
-                disabled={page === totalPages}
-                className="relative inline-flex items-center rounded-r-md px-2 py-2 text-gray-400 ring-1 ring-inset ring-gray-300 hover:bg-gray-50 focus:z-20 focus:outline-offset-0"
-              >
-                Next
-              </button>
-            </nav>
-          </div>
+      {renderSummaryCards()}
+
+      <div className="border rounded-lg">
+        <div className="max-h-[600px] overflow-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50 sticky top-0 z-10">
+              <tr>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date & Time</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Customer</th>
+                {activeView === 'purchases' ? (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quality</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Quantity</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rate</th>
+                  </>
+                ) : (
+                  <>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Type</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
+                  </>
+                )}
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {loading ? (
+                <tr>
+                  <td colSpan={activeView === 'purchases' ? 8 : 7} className="px-6 py-4 text-center">Loading...</td>
+                </tr>
+              ) : transactions.length === 0 ? (
+                <tr>
+                  <td colSpan={activeView === 'purchases' ? 8 : 7} className="px-6 py-4 text-center">
+                    No {activeView} found for the selected filters.
+                  </td>
+                </tr>
+              ) : (
+                transactions.map((transaction, index) => (
+                  <tr key={index} className="hover:bg-gray-50">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {new Date(transaction.transaction_date).toLocaleDateString()}
+                      <br />
+                      <span className="text-sm text-gray-500">{transaction.transaction_time}</span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">{transaction.customer_name}</td>
+                    {activeView === 'purchases' ? (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap">{transaction.quality_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{transaction.quantity?.toFixed(2) || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">₹{transaction.rate?.toFixed(2) || '-'}</td>
+                      </>
+                    ) : (
+                      <>
+                        <td className="px-6 py-4 whitespace-nowrap capitalize">{transaction.payment_type}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">{transaction.transaction_id || '-'}</td>
+                      </>
+                    )}
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      ₹{((activeView === 'purchases' ? transaction.total_amount : transaction.amount_paid) || 0).toFixed(2)}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {activeView === 'purchases' ? (
+                        <span className={`px-2 py-1 rounded-full text-xs ${
+                          transaction.payment_status === 'paid' 
+                            ? 'bg-green-100 text-green-800' 
+                            : transaction.payment_status === 'partial'
+                            ? 'bg-yellow-100 text-yellow-800'
+                            : 'bg-red-100 text-red-800'
+                        }`}>
+                          {transaction.payment_status}
+                        </span>
+                      ) : (
+                        <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                          completed
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">{transaction.notes || '-'}</td>
+                  </tr>
+                ))
+              )}
+            </tbody>
+          </table>
         </div>
       </div>
     </div>
   );
-} 
+}
