@@ -150,9 +150,6 @@ export default function PurchaseInsights({ customerId }) {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                   Total Amount
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
-                  Payment Status
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
                   Notes
                 </th>
@@ -195,17 +192,6 @@ export default function PurchaseInsights({ customerId }) {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       ₹{insight.total_amount.toFixed(2)}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      <span className={`px-2 py-1 rounded-full text-xs ${
-                        insight.payment_status === 'paid' 
-                          ? 'bg-green-100 text-green-800' 
-                          : insight.payment_status === 'partial'
-                          ? 'bg-yellow-100 text-yellow-800'
-                          : 'bg-red-100 text-red-800'
-                      }`}>
-                        {insight.payment_status}
-                      </span>
                     </td>
                     <td className="px-6 py-4">
                       {insight.notes || '-'}

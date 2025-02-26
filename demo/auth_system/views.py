@@ -408,6 +408,10 @@ def create_stock_transaction(request):
     try:
         transactions_data = request.data
         
+        # Print user information at the start
+        print(f"User authenticated: {request.user.is_authenticated}")
+        print(f"Username: {request.user.username}")
+        
         # Handle both single transaction and multiple transactions
         if not isinstance(transactions_data, list):
             transactions_data = [transactions_data]
@@ -460,6 +464,9 @@ def create_stock_transaction(request):
                 print(f"Initial balance: {initial_balance}")
                 print(f"Initial payment status: {initial_payment_status}")
                 
+                # Print debug information for created_by
+                print(f"User creating transaction: {request.user.username}")
+                
                 transaction_data = {
                     'customer': customer.id,
                     'transaction_type': 'stock',
@@ -473,15 +480,18 @@ def create_stock_transaction(request):
                     'payment_status': initial_payment_status,
                     'balance': initial_balance,
                     'amount_paid': initial_amount_paid,
-                    'payment_type': data.get('payment_type', 'cash')
+                    'payment_type': data.get('payment_type', 'cash'),
+                    'created_by': request.user.username
                 }
                 
                 # Print the transaction data for debugging
-                print(f"Transaction data: {transaction_data}")
+                print(f"Transaction data before serialization: {transaction_data}")
                 
                 serializer = TransactionSerializer(data=transaction_data)
                 if serializer.is_valid():
                     transaction_obj = serializer.save()
+                    print(f"Transaction saved with created_by: {transaction_obj.created_by}")
+                    print(f"Full transaction object after save: {transaction_obj.__dict__}")
                     saved_transactions.append(serializer.data)
                 else:
                     print(f"Serializer errors: {serializer.errors}")
@@ -502,6 +512,10 @@ def create_payment_transaction(request):
     try:
         from decimal import Decimal
         data = request.data
+        
+        # Print user information at the start
+        print(f"User authenticated: {request.user.is_authenticated}")
+        print(f"Username: {request.user.username}")
         
         # Validate required fields
         required_fields = ['customer_id', 'payment_type', 'amount_paid']
@@ -535,14 +549,21 @@ def create_payment_transaction(request):
                 'payment_status': 'paid',
                 'quality_type': 'payment',
                 'quantity': 1,
-                'rate': payment_amount
+                'rate': payment_amount,
+                'created_by': request.user.username
             }
+            
+            # Print the transaction data for debugging
+            print(f"Payment transaction data before serialization: {transaction_data}")
             
             serializer = TransactionSerializer(data=transaction_data)
             if not serializer.is_valid():
+                print(f"Payment serializer errors: {serializer.errors}")
                 return Response(serializer.errors, status=400)
             
             payment_transaction = serializer.save()
+            print(f"Payment transaction saved with created_by: {payment_transaction.created_by}")
+            print(f"Full payment transaction object after save: {payment_transaction.__dict__}")
             
             # Check if manual allocation is enabled
             manual_allocation = data.get('manual_allocation', False)
@@ -831,7 +852,8 @@ def get_purchase_insights(request):
             'rate',
             'total',
             'payment_status',
-            'notes'
+            'notes',
+            'created_by'
         ).order_by('-transaction_date', '-transaction_time')
         
         # Format the insights data
@@ -844,7 +866,8 @@ def get_purchase_insights(request):
             'rate': float(transaction['rate']),
             'total_amount': float(transaction['total']),
             'payment_status': transaction['payment_status'],
-            'notes': transaction['notes']
+            'notes': transaction['notes'],
+            'created_by': transaction['created_by']
         } for transaction in insights]
         
         # Calculate summary
@@ -899,7 +922,8 @@ def create_bulk_payment(request):
                     'notes': payment.get('notes', ''),
                     'transaction_date': timezone.now().date(),
                     'transaction_time': timezone.now().time(),
-                    'payment_status': 'paid'
+                    'payment_status': 'paid',
+                    'created_by': request.user.username
                 }
                 
                 serializer = TransactionSerializer(data=transaction_data)
@@ -992,7 +1016,8 @@ def get_payment_insights(request):
             'bank_account__account_number',
             'transaction_id',
             'amount_paid',
-            'notes'
+            'notes',
+            'created_by'
         ).order_by('-transaction_date', '-transaction_time')
         
         # Calculate most common payment type
@@ -1009,7 +1034,8 @@ def get_payment_insights(request):
             'bank_account': payment['bank_account__account_number'],
             'transaction_id': payment['transaction_id'],
             'amount_paid': float(payment['amount_paid']),
-            'notes': payment['notes']
+            'notes': payment['notes'],
+            'created_by': payment['created_by']
         } for payment in insights]
         
         # Calculate summary

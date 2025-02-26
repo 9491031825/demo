@@ -93,6 +93,7 @@ class Transaction(models.Model):
     transaction_time = models.TimeField(default=timezone.now)
     created_at = models.DateTimeField(default=timezone.now)
     updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=150, blank=True, null=True, help_text="Username of the user who created this transaction")
 
     def save(self, *args, **kwargs):
         if not self.transaction_type:

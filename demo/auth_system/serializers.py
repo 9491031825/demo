@@ -71,7 +71,8 @@ class TransactionSerializer(serializers.ModelSerializer):
             'updated_at',
             'bank_account',
             'bank_account_id',
-            'updated_transactions'
+            'updated_transactions',
+            'created_by'
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'customer_name', 'customer_phone']
 

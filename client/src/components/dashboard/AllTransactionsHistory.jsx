@@ -191,6 +191,7 @@ export default function AllTransactionsHistory({ customerId }) {
         'Transaction ID': tx.transaction_id || '-',
         'Amount Paid': tx.amount_paid
       }),
+      'Created By': tx.created_by || '-',
       Notes: tx.notes || '-'
     }));
   };
@@ -417,61 +418,63 @@ export default function AllTransactionsHistory({ customerId }) {
                   </>
                 )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Created By</th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Notes</th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan={activeView === 'purchases' ? 8 : 7} className="px-6 py-4 text-center">Loading...</td>
+                  <td colSpan={activeView === 'purchases' ? 9 : 7} className="px-6 py-4 text-center">
+                    Loading...
+                  </td>
                 </tr>
-              ) : currentData.length === 0 ? (
+              ) : transactions.length === 0 ? (
                 <tr>
-                  <td colSpan={activeView === 'purchases' ? 8 : 7} className="px-6 py-4 text-center">
-                    No {activeView} found for the selected filters.
+                  <td colSpan={activeView === 'purchases' ? 9 : 7} className="px-6 py-4 text-center">
+                    No transactions found for the selected filters.
                   </td>
                 </tr>
               ) : (
-                currentData.map((transaction, index) => (
+                transactions.map((transaction, index) => (
                   <tr key={index} className="hover:bg-gray-50">
                     <td className="px-6 py-4 whitespace-nowrap">
                       {new Date(transaction.transaction_date).toLocaleDateString()}
                       <br />
-                      <span className="text-sm text-gray-500">{transaction.transaction_time}</span>
+                      <span className="text-sm text-gray-500">
+                        {transaction.transaction_time}
+                      </span>
                     </td>
-                    <td className="px-6 py-4 whitespace-nowrap">{transaction.customer_name}</td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      {transaction.customer_name}
+                    </td>
                     {activeView === 'purchases' ? (
                       <>
-                        <td className="px-6 py-4 whitespace-nowrap">{transaction.quality_type}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{transaction.quantity?.toFixed(2) || '-'}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">₹{transaction.rate?.toFixed(2) || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {transaction.quality_type}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {transaction.quantity}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          ₹{transaction.rate}
+                        </td>
                       </>
                     ) : (
                       <>
-                        <td className="px-6 py-4 whitespace-nowrap capitalize">{transaction.payment_type}</td>
-                        <td className="px-6 py-4 whitespace-nowrap">{transaction.transaction_id || '-'}</td>
+                        <td className="px-6 py-4 whitespace-nowrap capitalize">
+                          {transaction.payment_type}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                          {transaction.transaction_id || '-'}
+                        </td>
                       </>
                     )}
                     <td className="px-6 py-4 whitespace-nowrap">
                       ₹{((activeView === 'purchases' ? transaction.total_amount : transaction.amount_paid) || 0).toFixed(2)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {activeView === 'purchases' ? (
-                        <span className={`px-2 py-1 rounded-full text-xs ${
-                          transaction.payment_status === 'paid' 
-                            ? 'bg-green-100 text-green-800' 
-                            : transaction.payment_status === 'partial'
-                            ? 'bg-yellow-100 text-yellow-800'
-                            : 'bg-red-100 text-red-800'
-                        }`}>
-                          {transaction.payment_status}
-                        </span>
-                      ) : (
-                        <span className="px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
-                          completed
-                        </span>
-                      )}
+                      {transaction.created_by || '-'}
                     </td>
                     <td className="px-6 py-4">{transaction.notes || '-'}</td>
                   </tr>

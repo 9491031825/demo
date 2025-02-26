@@ -463,7 +463,7 @@ export default function SettlementPage() {
                         : 'bg-green-600 hover:bg-green-700'
                     } text-white px-4 py-2 rounded-md transition-colors ml-2`}
                   >
-                    {paymentDetails[index].isProcessing ? 'Processing...' : 'Process Payment'}
+                    Process Payment
                   </button>
                 </div>
               </div>
