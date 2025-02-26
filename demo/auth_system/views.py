@@ -23,25 +23,28 @@ import os
 from twilio.rest import Client
 from google.auth.transport import requests
 from django.conf import settings
+
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 from twilio.twiml.messaging_response import MessagingResponse
 from django.core.exceptions import ValidationError
 from django.db.models.functions import TruncDate
 
+from dotenv import load_dotenv
+import os
+
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
 
 load_dotenv()
 # SECURITY WARNING: keep the secret key used in production secret!
-import os
-
 SECRET_KEY = os.getenv('SECRET_KEY')
 TWILIO_ACCOUNT_SID = os.getenv('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
+
 
 
 # Load environment variables

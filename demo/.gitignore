@@ -67,3 +67,4 @@ coverage.xml
 # Backup and temporary files
 *~
 *.swp
+.venv/
