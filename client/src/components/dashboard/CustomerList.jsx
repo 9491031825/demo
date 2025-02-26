@@ -130,12 +130,11 @@ export default function CustomerList({ onClose }) {
         <div className="overflow-x-auto">
           <table className="min-w-full table-auto">
             <thead>
-              <tr className="bg-gray-100">
+              <tr className="bg-gray-100 text-gray-600">
                 <th className="px-4 py-2 text-left">Name</th>
-                <th className="px-4 py-2 text-left">Phone</th>
-                <th className="px-4 py-2 text-left">Email</th>
                 <th className="px-4 py-2 text-left">Company</th>
                 <th className="px-4 py-2 text-left">GST/PAN</th>
+                <th className="px-4 py-2 text-left">Email</th>
                 <th className="px-4 py-2 text-left">Pending Amount</th>
                 <th className="px-4 py-2 text-left">Bank Payments</th>
               </tr>
@@ -144,12 +143,11 @@ export default function CustomerList({ onClose }) {
               {customers.map((customer) => (
                 <tr key={customer.id} className="border-b hover:bg-gray-50">
                   <td className="px-4 py-2">{customer.name}</td>
-                  <td className="px-4 py-2">{customer.phone_number}</td>
-                  <td className="px-4 py-2">{customer.email}</td>
                   <td className="px-4 py-2">{customer.company_name || '-'}</td>
                   <td className="px-4 py-2">
                     {customer.gst_number || customer.pan_number || '-'}
                   </td>
+                  <td className="px-4 py-2">{customer.email}</td>
                   <td className="px-4 py-2">
                     ₹{(customerBalances[customer.id] || 0).toFixed(2)}
                   </td>

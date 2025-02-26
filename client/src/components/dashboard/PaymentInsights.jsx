@@ -22,7 +22,10 @@ export default function PaymentInsights({ customerId }) {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+      
+      // Implement proper time frame handling
       params.append('timeFrame', timeFrame);
+      params.append('filterType', 'time_frame');
       
       if (timeFrame === 'today') {
         const today = new Date();

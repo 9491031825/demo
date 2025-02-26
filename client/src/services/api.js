@@ -59,7 +59,9 @@ export const customerAPI = {
       const balance = {
         total_pending: parseFloat(response.data.total_pending || 0),
         total_paid: parseFloat(response.data.total_paid || 0),
-        net_balance: parseFloat(response.data.net_balance || 0)
+        net_balance: parseFloat(response.data.net_balance || 0),
+        is_advance: response.data.is_advance || false,
+        advance_amount: parseFloat(response.data.advance_amount || 0)
       };
       
       console.log('Processed balance:', balance);
@@ -76,6 +78,16 @@ export const customerAPI = {
       return response.data;
     } catch (error) {
       console.error('Get bank accounts error:', error);
+      throw error.response?.data || error;
+    }
+  },
+
+  addBankAccount: async (customerId, bankAccountData) => {
+    try {
+      const response = await axios.post(`/api/customers/${customerId}/bank-accounts/add/`, bankAccountData);
+      return response.data;
+    } catch (error) {
+      console.error('Add bank account error:', error);
       throw error.response?.data || error;
     }
   },

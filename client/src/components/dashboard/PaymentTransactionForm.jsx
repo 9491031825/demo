@@ -4,6 +4,8 @@ import { toast } from 'react-toastify';
 import { useParams, useNavigate } from 'react-router-dom';
 import { transactionAPI, customerAPI } from '../../services/api';
 import { format } from 'date-fns';
+import Modal from '../common/Modal';
+import AddBankAccountForm from './AddBankAccountForm';
 
 export default function PaymentTransactionForm() {
   const { customerId } = useParams();
@@ -51,6 +53,9 @@ export default function PaymentTransactionForm() {
   const [pendingTransactions, setPendingTransactions] = useState([]);
   const [manualAllocation, setManualAllocation] = useState(false);
   const [allocations, setAllocations] = useState({});
+
+  // Modify the bank account form state to include modal visibility
+  const [showBankModal, setShowBankModal] = useState(false);
 
   // Update time every second
   useEffect(() => {
@@ -103,80 +108,80 @@ export default function PaymentTransactionForm() {
     fetchData();
   }, [customerId]);
 
+  // Handle successful bank account addition
+  const handleBankAccountSuccess = async () => {
+    try {
+      // Refresh bank accounts list
+      const updatedAccounts = await customerAPI.getBankAccounts(customerId);
+      setBankAccounts(updatedAccounts);
+      
+      // Close modal
+      setShowBankModal(false);
+      
+      toast.success('Bank account added successfully');
+    } catch (error) {
+      console.error('Error refreshing bank accounts:', error);
+      toast.error('Failed to refresh bank accounts');
+    }
+  };
+
+  // Modify handleSubmit to handle different payment types
   const handleSubmit = async (e) => {
     e.preventDefault();
     setIsSubmitting(true);
 
     try {
-      // Validate payment amount
+      // Validate based on payment type
       if (!paymentDetails.payment_amount || parseFloat(paymentDetails.payment_amount) <= 0) {
         toast.error('Please enter a valid payment amount');
         return;
       }
 
-      // Validate bank details if payment type is bank
       if (paymentDetails.payment_type === 'bank' && !paymentDetails.bank_account_id) {
         toast.error('Please select a bank account');
         return;
       }
 
-      // Validate transaction ID for bank/UPI payments
       if (['bank', 'upi'].includes(paymentDetails.payment_type) && !paymentDetails.transaction_id) {
-        toast.error('Please enter a transaction ID');
+        toast.error(`Please enter a ${paymentDetails.payment_type === 'upi' ? 'UPI Reference ID' : 'Transaction ID'}`);
         return;
       }
 
       const currentDate = new Date();
       const payload = {
         customer_id: customerId,
-        transaction_type: 'payment',  // Explicitly set as payment
+        transaction_type: 'payment',
         payment_type: paymentDetails.payment_type,
-        quality_type: 'payment',  // Add this field
-        quantity: 1,  // Add this field
-        rate: parseFloat(paymentDetails.payment_amount),  // Add this field
+        quality_type: 'payment',
+        quantity: 1,
+        rate: parseFloat(paymentDetails.payment_amount),
         total: parseFloat(paymentDetails.payment_amount),
         amount_paid: parseFloat(paymentDetails.payment_amount),
-        balance: 0,  // Payment transactions have no balance
-        transaction_id: paymentDetails.transaction_id || '',
-        bank_account: paymentDetails.bank_account_id || null,  // Changed from bank_account_id to bank_account
+        balance: 0,
+        transaction_id: ['bank', 'upi'].includes(paymentDetails.payment_type) ? paymentDetails.transaction_id : '',
+        bank_account: paymentDetails.payment_type === 'bank' ? paymentDetails.bank_account_id : null,
         notes: paymentDetails.notes || '',
-        transaction_date: currentDate.toISOString().split('T')[0],
-        transaction_time: currentDate.toTimeString().split(' ')[0],
-        payment_status: 'paid',
-        // Add manual allocation data if enabled
-        manual_allocation: manualAllocation,
-        allocations: manualAllocation ? allocations : null
+        transaction_date: format(currentDate, 'yyyy-MM-dd'),
+        transaction_time: format(currentDate, 'HH:mm:ss'),
+        payment_status: 'paid'
       };
 
-      console.log('Submitting payment payload:', payload);
       const result = await transactionAPI.createPayment(payload);
       
       if (result) {
-        // Refresh the balance immediately after successful payment
         const newBalance = await customerAPI.getBalance(customerId);
-        console.log('New balance after payment:', newBalance);
-        
-        // Update local state with new balance
-        setCustomerBalance({
-          total_pending: parseFloat(newBalance.total_pending || 0),
-          total_paid: parseFloat(newBalance.total_paid || 0),
-          net_balance: parseFloat(newBalance.net_balance || 0)
-        });
-        
-        toast.success('Payment transaction saved successfully!');
+        setCustomerBalance(newBalance);
+        toast.success('Payment processed successfully');
         navigate('/dashboard');
       }
     } catch (error) {
-      console.error('Payment error details:', error.response?.data);
       const errorMessage = error?.response?.data?.error || 
-                          (Array.isArray(error?.response?.data) ? error.response.data[0] : 'Failed to save payment');
+                          (Array.isArray(error?.response?.data) ? error.response.data[0] : 'Failed to process payment');
       toast.error(errorMessage);
     } finally {
       setIsSubmitting(false);
     }
   };
-
-  const handleBack = () => navigate('/dashboard');
 
   // Update the payment amount handler
   const handlePaymentAmountChange = (value) => {
@@ -281,7 +286,7 @@ export default function PaymentTransactionForm() {
         {/* Header with Customer Info and Time */}
         <div className="flex items-center justify-between mb-6">
           <button 
-            onClick={handleBack} 
+            onClick={() => navigate('/dashboard')} 
             className="text-indigo-600 hover:text-indigo-900"
           >
             ← Back to Search
@@ -305,10 +310,6 @@ export default function PaymentTransactionForm() {
               <p className="font-medium">{customerDetails.name}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Phone</p>
-              <p className="font-medium">{customerDetails.phone_number}</p>
-            </div>
-            <div>
               <p className="text-sm text-gray-500">Company</p>
               <p className="font-medium">{customerDetails.company_name || 'N/A'}</p>
             </div>
@@ -323,6 +324,14 @@ export default function PaymentTransactionForm() {
                   {customerDetails.tax_identifier?.both?.pan !== 'N/A' && ` | PAN: ${customerDetails.tax_identifier?.both?.pan}`}
                 </p>
               )}
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Email</p>
+              <p className="font-medium">{customerDetails.email || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Phone</p>
+              <p className="font-medium">{customerDetails.phone_number}</p>
             </div>
             <div className="col-span-2">
               <p className="text-sm text-gray-500">Address</p>
@@ -362,7 +371,8 @@ export default function PaymentTransactionForm() {
         {/* Payment Form */}
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
-            <div>
+            {/* Payment Type Selection */}
+            <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Payment Type
               </label>
@@ -383,19 +393,24 @@ export default function PaymentTransactionForm() {
               </select>
             </div>
 
+            {/* Bank Account Selection */}
             {paymentDetails.payment_type === 'bank' && (
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Select Bank Account
-                </label>
+              <div className="col-span-2">
+                <div className="mb-2">
+                  <label className="block text-sm font-medium text-gray-700">
+                    Select Bank Account
+                  </label>
+                </div>
+                
+                {/* Bank Account Selection Dropdown */}
                 <select
                   value={paymentDetails.bank_account_id}
                   onChange={(e) => setPaymentDetails({
                     ...paymentDetails,
                     bank_account_id: e.target.value
                   })}
-                  className="w-full rounded-md border-gray-300"
-                  required
+                  className="w-full rounded-md border-gray-300 mb-2"
+                  required={paymentDetails.payment_type === 'bank'}
                 >
                   <option value="">Select Bank Account</option>
                   {bankAccounts.map((account) => (
@@ -404,13 +419,54 @@ export default function PaymentTransactionForm() {
                     </option>
                   ))}
                 </select>
+
+                {/* Selected Bank Account Details */}
+                {paymentDetails.bank_account_id && (
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-200 shadow-sm">
+                    {bankAccounts
+                      .filter(account => account.id.toString() === paymentDetails.bank_account_id)
+                      .map(selectedAccount => (
+                        <div key={selectedAccount.id} className="space-y-3 text-base">
+                          <p className="text-gray-700">
+                            <span className="font-semibold text-gray-900 mr-2">Account Holder:</span> 
+                            {selectedAccount.account_holder_name}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-semibold text-gray-900 mr-2">Bank Name:</span> 
+                            {selectedAccount.bank_name}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-semibold text-gray-900 mr-2">Account Number:</span> 
+                            {selectedAccount.account_number}
+                          </p>
+                          <p className="text-gray-700">
+                            <span className="font-semibold text-gray-900 mr-2">IFSC Code:</span> 
+                            {selectedAccount.ifsc_code}
+                          </p>
+                        </div>
+                      ))}
+                  </div>
+                )}
               </div>
             )}
 
-            {(paymentDetails.payment_type === 'bank' || paymentDetails.payment_type === 'upi') && (
-              <div>
+            {/* Add Bank Account Modal */}
+            <Modal
+              isOpen={showBankModal}
+              onClose={() => setShowBankModal(false)}
+              title="Add New Bank Account"
+            >
+              <AddBankAccountForm 
+                customerId={customerId} 
+                onSuccess={handleBankAccountSuccess}
+              />
+            </Modal>
+
+            {/* Transaction ID for Bank and UPI */}
+            {['bank', 'upi'].includes(paymentDetails.payment_type) && (
+              <div className="col-span-2">
                 <label className="block text-sm font-medium text-gray-700 mb-1">
-                  Transaction ID
+                  {paymentDetails.payment_type === 'upi' ? 'UPI Reference ID' : 'Transaction ID'}
                 </label>
                 <input
                   type="text"
@@ -421,12 +477,12 @@ export default function PaymentTransactionForm() {
                   })}
                   className="w-full rounded-md border-gray-300"
                   required
-                  placeholder="Enter transaction ID"
                 />
               </div>
             )}
 
-            <div>
+            {/* Payment Amount */}
+            <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Payment Amount
               </label>
@@ -441,6 +497,7 @@ export default function PaymentTransactionForm() {
               />
             </div>
 
+            {/* Notes */}
             <div className="col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-1">
                 Notes
@@ -548,24 +605,23 @@ export default function PaymentTransactionForm() {
             </div>
           )}
 
-          <div className="flex justify-between items-center pt-4">
+          {/* Submit Button */}
+          <div className="flex justify-end space-x-2">
             <button
               type="button"
-              onClick={handleBack}
-              className="text-gray-700 hover:text-gray-900"
+              onClick={() => navigate('/dashboard')}
+              className="px-4 py-2 border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
             >
               Cancel
             </button>
             <button
               type="submit"
-              disabled={isSubmitting || (manualAllocation && unallocatedAmount < 0)}
-              className={`${
-                isSubmitting || (manualAllocation && unallocatedAmount < 0)
-                  ? 'bg-gray-400 cursor-not-allowed' 
-                  : 'bg-indigo-600 hover:bg-indigo-700'
-              } text-white px-4 py-2 rounded-md transition-colors`}
+              disabled={isSubmitting}
+              className={`px-4 py-2 rounded-md text-white ${
+                isSubmitting ? 'bg-gray-400 cursor-not-allowed' : 'bg-indigo-600 hover:bg-indigo-700'
+              }`}
             >
-              {isSubmitting ? 'Saving...' : 'Save Payment'}
+              {isSubmitting ? 'Processing...' : 'Save Payment'}
             </button>
           </div>
         </form>

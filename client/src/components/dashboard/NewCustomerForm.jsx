@@ -102,19 +102,32 @@ export default function NewCustomerForm() {
 
       // Then create bank accounts
       const customerId = customerResponse.data.id;
-      const bankAccountPromises = formData.bank_accounts
-        .filter(account => account.account_holder_name && account.bank_name)
-        .map(account => 
-          axios.post(`/api/customers/${customerId}/bank-accounts/add/`, {
-            account_holder_name: account.account_holder_name,
-            bank_name: account.bank_name,
-            account_number: account.account_number,
-            ifsc_code: account.ifsc_code,
-            is_default: account.is_default
-          })
-        );
+      
+      // Only process bank accounts that have data
+      const validBankAccounts = formData.bank_accounts.filter(account => 
+        account.account_holder_name && 
+        account.bank_name && 
+        account.account_number && 
+        account.ifsc_code
+      );
 
-      await Promise.all(bankAccountPromises);
+      if (validBankAccounts.length > 0) {
+        // Process bank accounts sequentially to maintain order
+        for (const account of validBankAccounts) {
+          try {
+            await axios.post(`/api/customers/${customerId}/bank-accounts/add/`, {
+              account_holder_name: account.account_holder_name,
+              bank_name: account.bank_name,
+              account_number: account.account_number,
+              ifsc_code: account.ifsc_code.toUpperCase(),
+              is_default: account.is_default
+            });
+          } catch (bankError) {
+            console.error('Error adding bank account:', bankError);
+            toast.error(`Failed to add bank account for ${account.bank_name}`);
+          }
+        }
+      }
       
       setSuccess(true);
       toast.success('Customer created successfully!');

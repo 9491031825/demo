@@ -22,7 +22,20 @@ export default function PurchaseInsights({ customerId }) {
     try {
       setLoading(true);
       const params = new URLSearchParams();
+      
+      // Implement proper time frame handling
       params.append('timeFrame', timeFrame);
+      params.append('filterType', 'time_frame');
+      
+      if (timeFrame === 'today') {
+        const today = new Date();
+        const year = today.getFullYear();
+        const month = String(today.getMonth() + 1).padStart(2, '0');
+        const day = String(today.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
+        params.append('date', formattedDate);
+      }
+      
       selectedQualityTypes.forEach(type => params.append('qualityTypes[]', type));
       if (customerId) {
         params.append('customerId', customerId);

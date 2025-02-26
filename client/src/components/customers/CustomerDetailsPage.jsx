@@ -292,9 +292,9 @@ export default function CustomerDetailsPage() {
           <h2 className="text-xl font-semibold mb-4">{customer.name}</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <p><span className="font-semibold">Phone:</span> {customer.phone_number}</p>
-              <p><span className="font-semibold">Email:</span> {customer.email}</p>
               <p><span className="font-semibold">Company:</span> {customer.company_name || '-'}</p>
+              <p><span className="font-semibold">Email:</span> {customer.email}</p>
+              <p><span className="font-semibold">Phone:</span> {customer.phone_number}</p>
             </div>
             <div>
               <p><span className="font-semibold">GST:</span> {customer.gst_number || '-'}</p>
@@ -321,12 +321,25 @@ export default function CustomerDetailsPage() {
             </div>
             <div className="text-center">
               <p className="text-gray-600">Net Balance</p>
-              <p className={`text-xl font-semibold ${balance.net_balance < 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ₹{Math.abs(balance.net_balance)}
-                {balance.is_advance && ' (Advance)'}
-              </p>
+              {balance.is_advance ? (
+                <p className="text-xl font-semibold text-yellow-500">
+                  ₹{balance.advance_amount} (Advance)
+                </p>
+              ) : (
+                <p className="text-xl font-semibold text-red-600">
+                  ₹{Math.abs(balance.net_balance)}
+                </p>
+              )}
             </div>
           </div>
+          {balance.is_advance && (
+            <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-md">
+              <p className="text-sm text-yellow-700">
+                <span className="font-semibold">Note:</span> This customer has an advance payment of ₹{balance.advance_amount}. 
+                New stock transactions will automatically use this advance payment.
+              </p>
+            </div>
+          )}
         </div>
       )}
 

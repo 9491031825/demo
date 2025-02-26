@@ -61,9 +61,8 @@ export default function CustomerListPage() {
               <thead>
                 <tr className="bg-gray-100">
                   <th className="px-6 py-3 text-left">Name</th>
-                  <th className="px-6 py-3 text-left">Phone</th>
-                  <th className="px-6 py-3 text-left">Email</th>
                   <th className="px-6 py-3 text-left">Company</th>
+                  <th className="px-6 py-3 text-left">Email</th>
                   <th className="px-6 py-3 text-left">GST/PAN</th>
                   <th className="px-6 py-3 text-left">Actions</th>
                 </tr>
@@ -75,9 +74,8 @@ export default function CustomerListPage() {
                     className="border-b hover:bg-gray-50 cursor-pointer"
                   >
                     <td className="px-6 py-4">{customer.name}</td>
-                    <td className="px-6 py-4">{customer.phone_number}</td>
-                    <td className="px-6 py-4">{customer.email}</td>
                     <td className="px-6 py-4">{customer.company_name || '-'}</td>
+                    <td className="px-6 py-4">{customer.email}</td>
                     <td className="px-6 py-4">
                       {customer.gst_number || customer.pan_number || '-'}
                     </td>

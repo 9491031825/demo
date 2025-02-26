@@ -3,6 +3,7 @@ import { useLocation, useNavigate } from 'react-router-dom';
 import { customerAPI, transactionAPI } from '../../services/api';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
+import AddBankAccountForm from './AddBankAccountForm';
 
 export default function SettlementPage() {
   const location = useLocation();
@@ -10,6 +11,9 @@ export default function SettlementPage() {
   const [settlements, setSettlements] = useState([]);
   const [notes, setNotes] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  // State for bank account form modal
+  const [showBankAccountForm, setShowBankAccountForm] = useState(false);
+  const [selectedCustomerIndex, setSelectedCustomerIndex] = useState(null);
 
   // Initialize paymentDetails as an empty array first
   const [paymentDetails, setPaymentDetails] = useState([]);
@@ -246,10 +250,41 @@ export default function SettlementPage() {
     }
   };
 
+  // Function to handle opening the bank account form
+  const handleOpenBankAccountForm = (index) => {
+    setSelectedCustomerIndex(index);
+    setShowBankAccountForm(true);
+  };
+
+  // Function to handle successful bank account addition
+  const handleBankAccountAdded = async () => {
+    if (selectedCustomerIndex !== null) {
+      // Refresh bank accounts for the customer
+      await refreshCustomerData(selectedCustomerIndex);
+      setShowBankAccountForm(false);
+      toast.success('Bank account added successfully');
+    }
+  };
+
   const totals = getTotals();
 
   return (
     <div className="p-6 max-w-7xl mx-auto relative">
+      {/* Bank Account Form Modal */}
+      {showBankAccountForm && selectedCustomerIndex !== null && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-lg shadow-lg max-w-md w-full max-h-[90vh] overflow-y-auto">
+            <h2 className="text-xl font-semibold mb-4">
+              Add Bank Account for {settlements[selectedCustomerIndex].customer.name}
+            </h2>
+            <AddBankAccountForm 
+              customerId={settlements[selectedCustomerIndex].customer.id} 
+              onSuccess={handleBankAccountAdded} 
+            />
+          </div>
+        </div>
+      )}
+
       {/* Main content wrapper with adjusted width for large screens */}
       <div className="lg:w-[calc(100%-320px)]">
         <div className="flex justify-between items-center mb-6">
@@ -292,19 +327,31 @@ export default function SettlementPage() {
                   {paymentDetails[index].payment_type === 'bank' && (
                     <div>
                       <label className="block text-sm font-medium text-gray-700">Bank Account</label>
-                      <select
-                        value={paymentDetails[index].bank_account_id}
-                        onChange={(e) => handlePaymentDetailsChange(index, 'bank_account_id', e.target.value)}
-                        className="mt-1 block w-full rounded-md border-gray-300"
-                        required
-                      >
-                        <option value="">Select Bank Account</option>
-                        {settlement.bankAccounts.map(account => (
-                          <option key={account.id} value={account.id}>
-                            {account.bank_name} - {account.account_number}
-                          </option>
-                        ))}
-                      </select>
+                      <div className="flex items-center space-x-2">
+                        <select
+                          value={paymentDetails[index].bank_account_id}
+                          onChange={(e) => handlePaymentDetailsChange(index, 'bank_account_id', e.target.value)}
+                          className="mt-1 block w-full rounded-md border-gray-300"
+                          required
+                        >
+                          <option value="">Select Bank Account</option>
+                          {settlement.bankAccounts.map(account => (
+                            <option key={account.id} value={account.id}>
+                              {account.bank_name} - {account.account_number}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          type="button"
+                          onClick={() => handleOpenBankAccountForm(index)}
+                          className="mt-1 bg-indigo-600 text-white p-2 rounded-md hover:bg-indigo-700"
+                          title="Add New Bank Account"
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                            <path fillRule="evenodd" d="M10 3a1 1 0 011 1v5h5a1 1 0 110 2h-5v5a1 1 0 11-2 0v-5H4a1 1 0 110-2h5V4a1 1 0 011-1z" clipRule="evenodd" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   )}
 

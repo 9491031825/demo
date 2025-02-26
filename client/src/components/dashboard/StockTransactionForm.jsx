@@ -232,10 +232,6 @@ export default function StockTransactionForm() {
               <p className="font-medium">{customerDetails.name}</p>
             </div>
             <div>
-              <p className="text-sm text-gray-500">Phone</p>
-              <p className="font-medium">{customerDetails.phone_number}</p>
-            </div>
-            <div>
               <p className="text-sm text-gray-500">Company</p>
               <p className="font-medium">{customerDetails.company_name || 'N/A'}</p>
             </div>
@@ -250,6 +246,14 @@ export default function StockTransactionForm() {
                   {customerDetails.tax_identifier?.both?.pan !== 'N/A' && ` | PAN: ${customerDetails.tax_identifier?.both?.pan}`}
                 </p>
               )}
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Email</p>
+              <p className="font-medium">{customerDetails.email || 'N/A'}</p>
+            </div>
+            <div>
+              <p className="text-sm text-gray-500">Phone</p>
+              <p className="font-medium">{customerDetails.phone_number}</p>
             </div>
             <div className="col-span-2">
               <p className="text-sm text-gray-500">Address</p>
