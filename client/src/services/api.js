@@ -18,11 +18,25 @@ export const customerAPI = {
     return response.data;
   },
 
-  getTransactions: async (customerId, page = 1, pageSize = 10) => {
-    const response = await axios.get(`/api/customers/${customerId}/transactions/`, {
-      params: { page, page_size: pageSize }
-    });
-    return response.data;
+  getTransactions: async (customerId, page = 1, pageSize = 10, filters = null) => {
+    try {
+      const params = new URLSearchParams();
+      params.append('page', page);
+      params.append('page_size', pageSize);
+      
+      // Add date range filters if provided
+      if (filters && filters.filterType === 'date_range') {
+        params.append('filterType', 'date_range');
+        params.append('startDate', filters.startDate);
+        params.append('endDate', filters.endDate);
+      }
+      
+      const response = await axios.get(`/api/customers/${customerId}/transactions/?${params.toString()}`);
+      return response.data;
+    } catch (error) {
+      console.error('Get transactions error:', error);
+      throw error.response?.data || error;
+    }
   },
 
   getDetails: async (customerId) => {
@@ -163,6 +177,16 @@ export const transactionAPI = {
       return response.data;
     } catch (error) {
       console.error('Get payment insights error:', error);
+      throw error.response?.data || error;
+    }
+  },
+
+  getPendingTransactions: async (customerId) => {
+    try {
+      const response = await axios.get(`/api/customers/${customerId}/pending-transactions/`);
+      return response.data;
+    } catch (error) {
+      console.error('Get pending transactions error:', error);
       throw error.response?.data || error;
     }
   },

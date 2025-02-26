@@ -24,7 +24,7 @@ export default function StockTransactionForm() {
   const [currentTime, setCurrentTime] = useState(new Date().toLocaleString());
   const [customerDetails, setCustomerDetails] = useState({
     name: '',
-    phone: '',
+    phone_number: '',
     address: '',
     email: '',
     company_name: '',
@@ -233,7 +233,7 @@ export default function StockTransactionForm() {
             </div>
             <div>
               <p className="text-sm text-gray-500">Phone</p>
-              <p className="font-medium">{customerDetails.phone}</p>
+              <p className="font-medium">{customerDetails.phone_number}</p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Company</p>
