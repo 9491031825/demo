@@ -9,6 +9,7 @@ from .views import (
     get_purchase_insights,
     create_bulk_payment,
     get_payment_insights,
+    get_pending_transactions,
 )
 
 urlpatterns = [
@@ -32,4 +33,5 @@ urlpatterns = [
     path('api/transactions/insights', get_purchase_insights, name='purchase_insights'),
     path('api/transactions/payment/bulk/', create_bulk_payment, name='create_bulk_payment'),
     path('api/transactions/payment-insights', get_payment_insights, name='get_payment_insights'),
+    path('api/customers/<int:customer_id>/pending-transactions/', get_pending_transactions),
 ]

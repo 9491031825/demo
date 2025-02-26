@@ -30,9 +30,6 @@ from twilio.twiml.messaging_response import MessagingResponse
 from django.core.exceptions import ValidationError
 from django.db.models.functions import TruncDate
 
-from dotenv import load_dotenv
-import os
-
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
 
@@ -44,11 +41,6 @@ TWILIO_AUTH_TOKEN = os.getenv('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.getenv('TWILIO_PHONE_NUMBER')
 EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD')  
 EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER')
-
-
-
-# Load environment variables
-import os
 
 ADMIN_PHONE = os.getenv('ADMIN_PHONE')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
@@ -147,7 +139,6 @@ def verify_user(request):
         "redirect": "/dashboard"
     }, status=200)
 
-
 #email sending otp
 @api_view(['POST'])
 @permission_classes([AllowAny])
@@ -168,7 +159,6 @@ def send_email_otp(request):
     )
 
     return Response({"message": "Email OTP sent successfully"})
-
 
 #email otp verification
 @api_view(['POST'])
@@ -192,7 +182,6 @@ def verify_email_otp(request):
         })
 
     return Response({"error": "Invalid OTP"}, status=400)
-
 
 #home Page
 @api_view(['GET'])
@@ -249,14 +238,29 @@ def get_transactions(request, customer_id):
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 10))
     
-    start = (page - 1) * page_size
-    end = start + page_size
+    # Get filter parameters
+    filter_type = request.GET.get('filterType', None)
+    start_date = request.GET.get('startDate', None)
+    end_date = request.GET.get('endDate', None)
     
-    transactions = Transaction.objects.filter(
+    # Base query
+    transactions_query = Transaction.objects.filter(
         customer_id=customer_id
-    ).order_by('-created_at')[start:end]
+    ).select_related('bank_account')
     
-    total = Transaction.objects.filter(customer_id=customer_id).count()
+    # Apply date range filter if provided
+    if filter_type == 'date_range' and start_date and end_date:
+        transactions_query = transactions_query.filter(
+            transaction_date__gte=start_date,
+            transaction_date__lte=end_date
+        )
+    
+    # Order and paginate
+    transactions = transactions_query.order_by('-created_at')[
+        (page - 1) * page_size : (page - 1) * page_size + page_size
+    ]
+    
+    total = transactions_query.count()
     
     serializer = TransactionSerializer(transactions, many=True)
     
@@ -272,7 +276,8 @@ def get_transactions(request, customer_id):
         'results': serializer.data,
         'count': total,
         'customer_name': customer.name,
-        'total_pending': float(total_pending)
+        'total_pending': float(total_pending),
+        'filter_applied': filter_type == 'date_range'
     })
 
 @api_view(['POST'])
@@ -402,7 +407,6 @@ def login_user(request):
 def create_stock_transaction(request):
     try:
         transactions_data = request.data
-        print("Received data:", transactions_data)
         
         # Handle both single transaction and multiple transactions
         if not isinstance(transactions_data, list):
@@ -420,6 +424,42 @@ def create_stock_transaction(request):
                 rate = float(data.get('rate', 0))
                 total = float(data.get('total', 0))
                 
+                # Check for advance payments (negative balance)
+                # Calculate current balance before this transaction
+                stock_total = Transaction.objects.filter(
+                    customer=customer,
+                    transaction_type='stock'
+                ).aggregate(total=Sum('total'))['total'] or 0
+                
+                payment_total = Transaction.objects.filter(
+                    customer=customer,
+                    transaction_type='payment'
+                ).aggregate(total=Sum('amount_paid'))['total'] or 0
+                
+                # If payment_total > stock_total, we have an advance payment
+                advance_amount = float(payment_total) - float(stock_total)
+                
+                # Determine initial values for the new transaction
+                initial_amount_paid = 0
+                initial_balance = total
+                initial_payment_status = 'pending'
+                
+                # If we have an advance payment, apply it to this transaction
+                if advance_amount > 0:
+                    # Apply the advance to this transaction
+                    amount_to_apply = min(advance_amount, total)
+                    initial_amount_paid = amount_to_apply
+                    initial_balance = total - amount_to_apply
+                    initial_payment_status = 'paid' if initial_balance == 0 else 'partial'
+                
+                # Print debug information
+                print(f"Creating stock transaction for customer {customer_id}")
+                print(f"Stock total: {stock_total}, Payment total: {payment_total}")
+                print(f"Advance amount: {advance_amount}")
+                print(f"Initial amount paid: {initial_amount_paid}")
+                print(f"Initial balance: {initial_balance}")
+                print(f"Initial payment status: {initial_payment_status}")
+                
                 transaction_data = {
                     'customer': customer.id,
                     'transaction_type': 'stock',
@@ -428,49 +468,55 @@ def create_stock_transaction(request):
                     'rate': rate,
                     'total': total,
                     'notes': data.get('notes', ''),
-                    'transaction_date': data.get('transaction_date'),
-                    'transaction_time': data.get('transaction_time'),
-                    'payment_status': 'pending',
-                    'balance': total,
-                    'amount_paid': 0,
+                    'transaction_date': data.get('transaction_date', timezone.now().date().isoformat()),
+                    'transaction_time': data.get('transaction_time', timezone.now().time().isoformat()),
+                    'payment_status': initial_payment_status,
+                    'balance': initial_balance,
+                    'amount_paid': initial_amount_paid,
                     'payment_type': data.get('payment_type', 'cash')
                 }
                 
                 # Print the transaction data for debugging
-                print("Processing transaction data:", transaction_data)
+                print(f"Transaction data: {transaction_data}")
                 
                 serializer = TransactionSerializer(data=transaction_data)
                 if serializer.is_valid():
                     transaction_obj = serializer.save()
                     saved_transactions.append(serializer.data)
                 else:
-                    print("Serializer errors:", serializer.errors)
+                    print(f"Serializer errors: {serializer.errors}")
                     raise ValidationError(f"Validation error for transaction: {serializer.errors}")
         
         return Response(saved_transactions, status=201)
         
     except ValidationError as e:
-        print(f"Validation error in create_stock_transaction: {str(e)}")
+        print(f"Validation error: {str(e)}")
         return Response({'error': str(e)}, status=400)
     except Exception as e:
-        print(f"Error in create_stock_transaction: {str(e)}")
+        print(f"Exception: {str(e)}")
         return Response({'error': str(e)}, status=400)
 
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 def create_payment_transaction(request):
     try:
+        from decimal import Decimal
         data = request.data
-        print("Received payment data:", data)
         
         # Validate required fields
-        required_fields = ['customer_id', 'payment_type', 'amount_paid', 'transaction_id']
+        required_fields = ['customer_id', 'payment_type', 'amount_paid']
         for field in required_fields:
             if not data.get(field):
                 return Response({'error': f'Missing required field: {field}'}, status=400)
         
         customer = get_object_or_404(Customer, id=data.get('customer_id'))
-        payment_amount = float(data.get('amount_paid', 0))
+        payment_amount = Decimal(str(data.get('amount_paid', '0')))
+        
+        # Get bank account if provided
+        bank_account_id = data.get('bank_account')
+        bank_account = None
+        if bank_account_id and data.get('payment_type') == 'bank':
+            bank_account = get_object_or_404(BankAccount, id=bank_account_id)
         
         with transaction.atomic():
             # Create the payment transaction
@@ -480,9 +526,9 @@ def create_payment_transaction(request):
                 'payment_type': data.get('payment_type'),
                 'amount_paid': payment_amount,
                 'total': payment_amount,
-                'balance': 0,
+                'balance': Decimal('0'),
                 'transaction_id': data.get('transaction_id'),
-                'bank_account': data.get('bank_account'),
+                'bank_account_id': bank_account.id if bank_account else None,
                 'notes': data.get('notes', ''),
                 'transaction_date': data.get('transaction_date', timezone.now().date()),
                 'transaction_time': data.get('transaction_time', timezone.now().time()),
@@ -492,52 +538,101 @@ def create_payment_transaction(request):
                 'rate': payment_amount
             }
             
-            print("Creating payment with data:", transaction_data)
-            
             serializer = TransactionSerializer(data=transaction_data)
             if not serializer.is_valid():
-                print("Serializer validation errors:", serializer.errors)
                 return Response(serializer.errors, status=400)
             
             payment_transaction = serializer.save()
             
-            # Update pending transactions
-            pending_transactions = Transaction.objects.filter(
-                customer=customer,
-                transaction_type='stock',
-                payment_status__in=['pending', 'partial']
-            ).order_by('created_at')
+            # Check if manual allocation is enabled
+            manual_allocation = data.get('manual_allocation', False)
+            allocations = data.get('allocations', {})
             
-            remaining_payment = payment_amount
             updated_transactions = []
             
-            for pending_tx in pending_transactions:
-                if remaining_payment <= 0:
-                    break
-                    
-                current_balance = float(pending_tx.balance or 0)
-                if current_balance > 0:
-                    amount_to_apply = min(remaining_payment, current_balance)
-                    pending_tx.amount_paid = float(pending_tx.amount_paid or 0) + amount_to_apply
-                    pending_tx.balance = current_balance - amount_to_apply
-                    pending_tx.payment_status = 'paid' if pending_tx.balance == 0 else 'partial'
-                    pending_tx.save()
-                    
-                    remaining_payment -= amount_to_apply
-                    updated_transactions.append({
-                        'id': pending_tx.id,
-                        'amount_applied': amount_to_apply,
-                        'new_balance': pending_tx.balance
-                    })
+            if manual_allocation and allocations:
+                # Convert allocations from string keys to integers if needed
+                processed_allocations = {}
+                for tx_id, amount in allocations.items():
+                    # Handle both string and integer keys
+                    processed_allocations[int(tx_id)] = Decimal(str(amount))
+                
+                # Get all transactions that have allocations
+                tx_ids = list(processed_allocations.keys())
+                transactions_to_update = Transaction.objects.filter(
+                    id__in=tx_ids,
+                    customer=customer,
+                    transaction_type='stock',
+                    payment_status__in=['pending', 'partial']
+                )
+                
+                # Apply allocations to each transaction
+                for tx in transactions_to_update:
+                    allocation_amount = processed_allocations.get(tx.id, Decimal('0'))
+                    if allocation_amount > 0:
+                        current_balance = Decimal(str(tx.balance or '0'))
+                        # Ensure we don't allocate more than the balance
+                        amount_to_apply = min(allocation_amount, current_balance)
+                        
+                        tx.amount_paid = Decimal(str(tx.amount_paid or '0')) + amount_to_apply
+                        tx.balance = current_balance - amount_to_apply
+                        tx.payment_status = 'paid' if tx.balance == 0 else 'partial'
+                        tx.save()
+                        
+                        updated_transactions.append({
+                            'id': tx.id,
+                            'amount_applied': str(amount_to_apply),
+                            'new_balance': str(tx.balance)
+                        })
+            else:
+                # Use the default allocation logic (oldest transactions first)
+                # Update pending transactions
+                pending_transactions = Transaction.objects.filter(
+                    customer=customer,
+                    transaction_type='stock',
+                    payment_status__in=['pending', 'partial']
+                ).order_by('created_at')  # Default is oldest first
+                
+                # Check if we should use a different sorting order
+                sort_order = data.get('sort_order', 'oldest_first')
+                if sort_order == 'smallest_first':
+                    pending_transactions = pending_transactions.order_by('balance')
+                elif sort_order == 'largest_first':
+                    pending_transactions = pending_transactions.order_by('-balance')
+                
+                remaining_payment = payment_amount
+                
+                for pending_tx in pending_transactions:
+                    if remaining_payment <= 0:
+                        break
+                        
+                    current_balance = Decimal(str(pending_tx.balance or '0'))
+                    if current_balance > 0:
+                        amount_to_apply = min(remaining_payment, current_balance)
+                        pending_tx.amount_paid = Decimal(str(pending_tx.amount_paid or '0')) + amount_to_apply
+                        pending_tx.balance = current_balance - amount_to_apply
+                        pending_tx.payment_status = 'paid' if pending_tx.balance == 0 else 'partial'
+                        pending_tx.save()
+                        
+                        remaining_payment -= amount_to_apply
+                        updated_transactions.append({
+                            'id': pending_tx.id,
+                            'amount_applied': str(amount_to_apply),
+                            'new_balance': str(pending_tx.balance)
+                        })
+            
+            # Store updated_transactions in the payment transaction for serialization
+            payment_transaction.updated_transactions = updated_transactions
+            
+            # Re-serialize with the updated_transactions included
+            response_serializer = TransactionSerializer(payment_transaction)
             
             return Response({
-                'payment': serializer.data,
-                'updated_transactions': updated_transactions,
-                'remaining_payment': remaining_payment
+                'payment': response_serializer.data,
+                'allocation_type': 'manual' if manual_allocation else 'automatic'
             }, status=201)
             
     except Exception as e:
-        print(f"Error in create_payment_transaction: {str(e)}")
         return Response({'error': str(e)}, status=400)
 
 @api_view(['GET'])
@@ -632,7 +727,6 @@ def get_customer_details(request, customer_id):
         
         return Response(customer_data)
     except Exception as e:
-        print(f"Error in get_customer_details: {str(e)}")  # Add debugging
         return Response({'error': str(e)}, status=400)
 
 @api_view(['GET'])
@@ -666,36 +760,37 @@ def get_customer_balance(request, customer_id):
             total=Sum('amount_paid')
         )['total'] or 0
         
-        # Calculate net balance
+        # Calculate total pending amount (sum of remaining balances)
+        total_pending = stock_transactions.aggregate(
+            total_pending=Sum('balance')
+        )['total_pending'] or 0
+        
+        # Calculate net balance (total payments - total stock amount)
+        # This approach ensures advance payments are properly accounted for
         net_balance = float(total_stock_amount) - float(total_payments)
         
-        # Determine if it's an advance payment
-        is_advance = total_payments > total_stock_amount
-        
-        print("\nDetailed Balance Calculations:")
-        print(f"Total Stock Amount: {total_stock_amount}")
-        print(f"Total Payments: {total_payments}")
-        print(f"Net Balance: {net_balance}")
-        print(f"Is Advance: {is_advance}")
+        # If net_balance is negative, it means there's an advance payment
+        is_advance = net_balance < 0
 
         return Response({
-            'total_pending': float(net_balance if net_balance > 0 else 0),
+            'total_pending': float(total_pending),
             'total_paid': float(total_payments),
             'net_balance': float(net_balance),
             'is_advance': is_advance,
             'advance_amount': float(abs(net_balance) if is_advance else 0),
             'debug_info': {
                 'stock_transactions': list(stock_transactions.values(
-                    'id', 'total', 'transaction_date'
+                    'id', 'total', 'balance', 'amount_paid', 'transaction_date'
                 )),
                 'payment_transactions': list(payment_transactions.values(
                     'id', 'amount_paid', 'transaction_date'
-                ))
+                )),
+                'total_stock_amount': float(total_stock_amount),
+                'total_payments': float(total_payments)
             }
         })
 
     except Exception as e:
-        print(f"Error in get_customer_balance: {str(e)}")
         return Response({'error': str(e)}, status=400)
 
 @api_view(['GET'])
@@ -765,7 +860,6 @@ def get_purchase_insights(request):
         })
         
     except Exception as e:
-        print(f"Error in get_purchase_insights: {str(e)}")
         return Response({'error': str(e)}, status=400)
 
 @api_view(['POST'])
@@ -773,7 +867,6 @@ def get_purchase_insights(request):
 def create_bulk_payment(request):
     try:
         payments_data = request.data
-        print("Received bulk payments data:", payments_data)
         
         saved_payments = []
         updated_transactions = []
@@ -802,7 +895,7 @@ def create_bulk_payment(request):
                     'total': payment_amount,
                     'amount_paid': payment_amount,
                     'balance': 0,
-                    'bank_account': payment.get('bank_account'),
+                    'bank_account_id': payment.get('bank_account'),
                     'notes': payment.get('notes', ''),
                     'transaction_date': timezone.now().date(),
                     'transaction_time': timezone.now().time(),
@@ -843,20 +936,16 @@ def create_bulk_payment(request):
                         'remaining_payment': remaining_payment
                     })
                 else:
-                    print("Validation error:", serializer.errors)
                     raise ValidationError(f"Validation error for payment: {serializer.errors}")
         
-        print(f"Bulk payments processed. Updated transactions: {updated_transactions}")
         return Response({
             'payments': saved_payments,
             'updated_transactions': updated_transactions
         }, status=201)
         
     except ValidationError as e:
-        print(f"Validation error in create_bulk_payment: {str(e)}")
         return Response({'error': str(e)}, status=400)
     except Exception as e:
-        print(f"Error in create_bulk_payment: {str(e)}")
         return Response({'error': str(e)}, status=400)
 
 @api_view(['GET'])
@@ -937,6 +1026,27 @@ def get_payment_insights(request):
         })
         
     except Exception as e:
-        print(f"Error in get_payment_insights: {str(e)}")
         return Response({'error': str(e)}, status=400)
 
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_pending_transactions(request, customer_id):
+    try:
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        # Get all pending or partially paid stock transactions
+        pending_transactions = Transaction.objects.filter(
+            customer=customer,
+            transaction_type='stock',
+            payment_status__in=['pending', 'partial']
+        ).order_by('created_at')
+        
+        serializer = TransactionSerializer(pending_transactions, many=True)
+        
+        return Response({
+            'results': serializer.data,
+            'count': pending_transactions.count()
+        })
+        
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)

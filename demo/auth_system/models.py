@@ -100,34 +100,26 @@ class Transaction(models.Model):
             
         if self.transaction_type == 'stock':
             if not self.pk:  # New transaction
-                self.balance = self.total
-                self.amount_paid = 0
-                self.payment_status = 'pending'
+                # Don't override amount_paid and balance if they're already set
+                # This allows the view to apply advance payments
+                if self.amount_paid is None or self.amount_paid == 0:
+                    self.amount_paid = 0
+                    self.balance = self.total
+                    self.payment_status = 'pending'
+                else:
+                    # If amount_paid is already set (e.g., from an advance payment)
+                    # Make sure payment_status is correct
+                    if self.balance == 0:
+                        self.payment_status = 'paid'
+                    elif self.balance < self.total:
+                        self.payment_status = 'partial'
+                    else:
+                        self.payment_status = 'pending'
         elif self.transaction_type == 'payment':
             self.balance = 0
             self.payment_status = 'paid'
             
-            # Update related stock transactions
-            if not self.pk:  # Only for new payment transactions
-                pending_transactions = Transaction.objects.filter(
-                    customer=self.customer,
-                    transaction_type='stock',
-                    payment_status__in=['pending', 'partial']
-                ).order_by('created_at')
-                
-                remaining_payment = float(self.amount_paid)
-                for pending_tx in pending_transactions:
-                    if remaining_payment <= 0:
-                        break
-                        
-                    current_balance = float(pending_tx.balance)
-                    if current_balance > 0:
-                        amount_to_apply = min(remaining_payment, current_balance)
-                        pending_tx.amount_paid = float(pending_tx.amount_paid) + amount_to_apply
-                        pending_tx.balance = current_balance - amount_to_apply
-                        pending_tx.payment_status = 'paid' if pending_tx.balance == 0 else 'partial'
-                        pending_tx.save()
-                        remaining_payment -= amount_to_apply
+            # Removed automatic payment application logic since it's handled in the view
 
         # Calculate running balance
         with transaction.atomic():
@@ -149,6 +141,8 @@ class Transaction(models.Model):
     def clean(self):
         if self.payment_type == 'bank' and not self.bank_account:
             raise ValidationError("Bank account is required for bank transfers")
+        elif self.payment_type in ['cash', 'upi']:
+            self.bank_account = None
 
     def __str__(self):
         return f"{self.transaction_type} - {self.customer.name} - {self.total}"
