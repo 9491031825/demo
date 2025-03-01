@@ -96,8 +96,7 @@ export default function CustomerList({ onClose }) {
               Acc: {tx.bank_account.account_number.slice(-4)}
             </div>
             <div className="text-gray-600">
-              Amount: ₹{tx.amount_paid} 
-              {tx.transaction_id && <span className="ml-1">({tx.transaction_id})</span>}
+              Amount: ₹{tx.amount_paid}
             </div>
             {index < transactions.length - 1 && <hr className="my-1" />}
           </div>

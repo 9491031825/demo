@@ -150,7 +150,6 @@ export default function CustomerDetailsPage() {
       bank_account: tx.bank_account ? 
         `${tx.bank_account.bank_name} - ${tx.bank_account.account_number}` : 
         '-',
-      transaction_id: tx.transaction_id || '-',
       amount: formatCurrency(tx.total),
       status: tx.payment_status,
       balance: formatCurrency(parseFloat(tx.running_balance) || 0),
@@ -460,7 +459,6 @@ export default function CustomerDetailsPage() {
                 <th className="px-6 py-3 text-left">Type</th>
                 <th className="px-6 py-3 text-left">Details</th>
                 <th className="px-6 py-3 text-left">Bank Account</th>
-                <th className="px-6 py-3 text-left">Transaction ID</th>
                 <th className="px-6 py-3 text-left">Amount</th>
                 <th className="px-6 py-3 text-left">Balance</th>
                 <th className="px-6 py-3 text-left">Notes</th>
@@ -523,9 +521,6 @@ export default function CustomerDetailsPage() {
                           <p className="text-gray-600">{transaction.bank_account.account_number}</p>
                         </div>
                       ) : '-'}
-                    </td>
-                    <td className="px-6 py-4">
-                      {transaction.transaction_id || '-'}
                     </td>
                     <td className="px-6 py-4 font-semibold">
                       {formatCurrency(transaction.total)}

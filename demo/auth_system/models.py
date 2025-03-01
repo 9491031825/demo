@@ -81,7 +81,6 @@ class Transaction(models.Model):
     balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     running_balance = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     
-    transaction_id = models.CharField(max_length=100, blank=True, null=True)
     bank_account = models.ForeignKey(
         'BankAccount',
         on_delete=models.SET_NULL,

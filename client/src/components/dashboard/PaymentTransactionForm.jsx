@@ -19,7 +19,6 @@ export default function PaymentTransactionForm() {
   const [paymentDetails, setPaymentDetails] = useState({
     payment_type: 'cash',
     payment_amount: '',
-    transaction_id: '',
     bank_account_id: '',
     notes: '',
   });
@@ -139,11 +138,6 @@ export default function PaymentTransactionForm() {
         return;
       }
 
-      if (['bank', 'upi'].includes(paymentDetails.payment_type) && !paymentDetails.transaction_id) {
-        toast.error(`Please enter a ${paymentDetails.payment_type === 'upi' ? 'UPI Reference ID' : 'Transaction ID'}`);
-        return;
-      }
-
       const currentDate = new Date();
       const payload = {
         customer_id: customerId,
@@ -155,13 +149,16 @@ export default function PaymentTransactionForm() {
         total: parseFloat(paymentDetails.payment_amount),
         amount_paid: parseFloat(paymentDetails.payment_amount),
         balance: 0,
-        transaction_id: ['bank', 'upi'].includes(paymentDetails.payment_type) ? paymentDetails.transaction_id : '',
-        bank_account: paymentDetails.payment_type === 'bank' ? paymentDetails.bank_account_id : null,
         notes: paymentDetails.notes || '',
         transaction_date: format(currentDate, 'yyyy-MM-dd'),
         transaction_time: format(currentDate, 'HH:mm:ss'),
         payment_status: 'paid'
       };
+
+      // Add bank account if payment type is bank
+      if (paymentDetails.payment_type === 'bank' && paymentDetails.bank_account_id) {
+        payload.bank_account = paymentDetails.bank_account_id;
+      }
 
       const result = await transactionAPI.createPayment(payload);
       
@@ -341,8 +338,7 @@ export default function PaymentTransactionForm() {
                 onChange={(e) => setPaymentDetails({
                   ...paymentDetails,
                   payment_type: e.target.value,
-                  bank_account_id: '',
-                  transaction_id: ''
+                  bank_account_id: ''
                 })}
                 className="w-full rounded-md border-gray-300"
                 required
@@ -421,25 +417,6 @@ export default function PaymentTransactionForm() {
                 onSuccess={handleBankAccountSuccess}
               />
             </Modal>
-
-            {/* Transaction ID for Bank and UPI */}
-            {['bank', 'upi'].includes(paymentDetails.payment_type) && (
-              <div className="col-span-2">
-                <label className="block text-sm font-medium text-gray-700 mb-1">
-                  {paymentDetails.payment_type === 'upi' ? 'UPI Reference ID' : 'Transaction ID'}
-                </label>
-                <input
-                  type="text"
-                  value={paymentDetails.transaction_id}
-                  onChange={(e) => setPaymentDetails({
-                    ...paymentDetails,
-                    transaction_id: e.target.value
-                  })}
-                  className="w-full rounded-md border-gray-300"
-                  required
-                />
-              </div>
-            )}
 
             {/* Payment Amount */}
             <div className="col-span-2">

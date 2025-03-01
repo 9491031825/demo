@@ -526,8 +526,11 @@ def create_payment_transaction(request):
         customer = get_object_or_404(Customer, id=data.get('customer_id'))
         payment_amount = Decimal(str(data.get('amount_paid', '0')))
         
-        # Get bank account if provided
-        bank_account_id = data.get('bank_account')
+        # Get bank account if provided - check both field names
+        bank_account_id = data.get('bank_account_id')
+        if not bank_account_id:
+            bank_account_id = data.get('bank_account')
+        
         bank_account = None
         if bank_account_id and data.get('payment_type') == 'bank':
             bank_account = get_object_or_404(BankAccount, id=bank_account_id)
@@ -541,8 +544,6 @@ def create_payment_transaction(request):
                 'amount_paid': payment_amount,
                 'total': payment_amount,
                 'balance': Decimal('0'),
-                'transaction_id': data.get('transaction_id'),
-                'bank_account_id': bank_account.id if bank_account else None,
                 'notes': data.get('notes', ''),
                 'transaction_date': data.get('transaction_date', timezone.now().date()),
                 'transaction_time': data.get('transaction_time', timezone.now().time()),
@@ -552,6 +553,10 @@ def create_payment_transaction(request):
                 'rate': payment_amount,
                 'created_by': request.user.username
             }
+            
+            # Add bank_account_id if payment type is bank
+            if data.get('payment_type') == 'bank' and bank_account:
+                transaction_data['bank_account_id'] = bank_account.id
             
             # Print the transaction data for debugging
             print(f"Payment transaction data before serialization: {transaction_data}")
@@ -907,6 +912,15 @@ def create_bulk_payment(request):
                     payment_status__in=['pending', 'partial']
                 ).order_by('created_at')
                 
+                # Get bank account if provided - check both field names
+                bank_account_id = payment.get('bank_account_id')
+                if not bank_account_id:
+                    bank_account_id = payment.get('bank_account')
+                
+                bank_account = None
+                if bank_account_id and payment.get('payment_type') == 'bank':
+                    bank_account = get_object_or_404(BankAccount, id=bank_account_id)
+                
                 # Create the payment transaction
                 transaction_data = {
                     'customer': customer.id,
@@ -918,13 +932,16 @@ def create_bulk_payment(request):
                     'total': payment_amount,
                     'amount_paid': payment_amount,
                     'balance': 0,
-                    'bank_account_id': payment.get('bank_account'),
                     'notes': payment.get('notes', ''),
-                    'transaction_date': timezone.now().date(),
-                    'transaction_time': timezone.now().time(),
+                    'transaction_date': payment.get('transaction_date', timezone.now().date()),
+                    'transaction_time': payment.get('transaction_time', timezone.now().time()),
                     'payment_status': 'paid',
                     'created_by': request.user.username
                 }
+                
+                # Add bank_account_id if payment type is bank
+                if payment.get('payment_type') == 'bank' and bank_account:
+                    transaction_data['bank_account_id'] = bank_account.id
                 
                 serializer = TransactionSerializer(data=transaction_data)
                 if serializer.is_valid():
@@ -1014,7 +1031,6 @@ def get_payment_insights(request):
             'customer__name',
             'payment_type',
             'bank_account__account_number',
-            'transaction_id',
             'amount_paid',
             'notes',
             'created_by'
@@ -1032,7 +1048,6 @@ def get_payment_insights(request):
             'customer_name': payment['customer__name'],
             'payment_type': payment['payment_type'],
             'bank_account': payment['bank_account__account_number'],
-            'transaction_id': payment['transaction_id'],
             'amount_paid': float(payment['amount_paid']),
             'notes': payment['notes'],
             'created_by': payment['created_by']

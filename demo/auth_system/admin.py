@@ -65,7 +65,7 @@ class TransactionAdmin(admin.ModelAdmin):
         'payment_status',
         'created_at'
     ]
-    search_fields = ['customer__name', 'transaction_id']
+    search_fields = ['customer__name']
 
 # CustomLogEntryAdmin
 # class CustomLogEntryAdmin(LogEntryAdmin):

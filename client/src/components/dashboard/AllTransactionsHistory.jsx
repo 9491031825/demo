@@ -190,7 +190,6 @@ export default function AllTransactionsHistory({ customerId }) {
         'Payment Status': tx.payment_status
       } : {
         'Payment Type': tx.payment_type,
-        'Transaction ID': tx.transaction_id || '-',
         'Amount Paid': tx.amount_paid
       }),
       'Created By': tx.created_by || '-',
@@ -425,7 +424,6 @@ export default function AllTransactionsHistory({ customerId }) {
                 ) : (
                   <>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Payment Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Transaction ID</th>
                   </>
                 )}
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
@@ -475,9 +473,6 @@ export default function AllTransactionsHistory({ customerId }) {
                       <>
                         <td className="px-6 py-4 whitespace-nowrap capitalize">
                           {transaction.payment_type}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          {transaction.transaction_id || '-'}
                         </td>
                       </>
                     )}

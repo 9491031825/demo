@@ -62,7 +62,6 @@ class TransactionSerializer(serializers.ModelSerializer):
             'amount_paid',
             'balance',
             'payment_type',
-            'transaction_id',
             'notes',
             'payment_status',
             'transaction_date',
@@ -96,6 +95,13 @@ class TransactionSerializer(serializers.ModelSerializer):
         # Validate bank_account_id based on payment_type
         payment_type = data.get('payment_type')
         bank_account_id = data.get('bank_account_id')
+        
+        # Handle both bank_account and bank_account_id fields
+        if not bank_account_id and 'bank_account' in self.initial_data:
+            bank_account = self.initial_data.get('bank_account')
+            if bank_account:
+                data['bank_account_id'] = bank_account
+                bank_account_id = bank_account
         
         if payment_type == 'bank' and not bank_account_id:
             raise serializers.ValidationError({'bank_account_id': 'Bank account is required for bank transfers'})

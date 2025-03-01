@@ -129,6 +129,11 @@ export const transactionAPI = {
   createPayment: async (paymentData) => {
     try {
       console.log('Creating payment with data:', paymentData);
+      // Ensure bank_account field is correctly set for bank transfers
+      if (paymentData.payment_type === 'bank' && paymentData.bank_account_id) {
+        paymentData.bank_account = paymentData.bank_account_id;
+        delete paymentData.bank_account_id;
+      }
       const response = await axios.post('/api/transactions/payment/create/', paymentData);
       return response.data;
     } catch (error) {
@@ -165,17 +170,25 @@ export const transactionAPI = {
     try {
       console.log('Creating bulk payment with data:', paymentsData);
       const response = await axios.post('/api/transactions/payment/bulk/', 
-        paymentsData.map(payment => ({
-          customer_id: payment.customer_id,
-          payment_type: payment.payment_type,
-          amount_paid: parseFloat(payment.amount_paid),
-          bank_account: payment.bank_account,
-          transaction_id: payment.transaction_id,
-          notes: payment.notes,
-          transaction_date: payment.transaction_date,
-          transaction_time: payment.transaction_time,
-          payment_status: payment.payment_status
-        }))
+        paymentsData.map(payment => {
+          // Ensure bank_account field is correctly set for bank transfers
+          const paymentData = {
+            customer_id: payment.customer_id,
+            payment_type: payment.payment_type,
+            amount_paid: parseFloat(payment.amount_paid),
+            notes: payment.notes,
+            transaction_date: payment.transaction_date,
+            transaction_time: payment.transaction_time,
+            payment_status: payment.payment_status
+          };
+          
+          // Set bank_account field correctly for bank transfers
+          if (payment.payment_type === 'bank' && payment.bank_account_id) {
+            paymentData.bank_account = payment.bank_account_id;
+          }
+          
+          return paymentData;
+        })
       );
       return response.data;
     } catch (error) {

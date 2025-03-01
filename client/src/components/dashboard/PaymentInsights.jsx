@@ -144,9 +144,6 @@ export default function PaymentInsights({ customerId }) {
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
                   Bank Account
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[150px]">
-                  Transaction ID
-                </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[120px]">
                   Amount
                 </th>
@@ -158,13 +155,13 @@ export default function PaymentInsights({ customerId }) {
             <tbody className="bg-white divide-y divide-gray-200">
               {loading ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center">
+                  <td colSpan="6" className="px-6 py-4 text-center">
                     Loading...
                   </td>
                 </tr>
               ) : insights.length === 0 ? (
                 <tr>
-                  <td colSpan="7" className="px-6 py-4 text-center">
+                  <td colSpan="6" className="px-6 py-4 text-center">
                     No payments found for the selected filters.
                   </td>
                 </tr>
@@ -186,9 +183,6 @@ export default function PaymentInsights({ customerId }) {
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {insight.bank_account || '-'}
-                    </td>
-                    <td className="px-6 py-4 whitespace-nowrap">
-                      {insight.transaction_id || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       ₹{formatIndianNumber(insight.amount_paid)}

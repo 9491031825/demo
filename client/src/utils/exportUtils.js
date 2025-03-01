@@ -32,7 +32,6 @@ export const exportToPDF = (data, fileName, customerInfo) => {
     { header: 'Type', dataKey: 'type' },
     { header: 'Details', dataKey: 'details' },
     { header: 'Bank Account', dataKey: 'bank_account' },
-    { header: 'Transaction ID', dataKey: 'transaction_id' },
     { header: 'Amount', dataKey: 'amount' },
     { header: 'Status', dataKey: 'status' },
     { header: 'Balance', dataKey: 'balance' },

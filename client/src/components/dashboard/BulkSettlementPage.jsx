@@ -12,7 +12,7 @@ export default function BulkSettlementPage() {
       toast.error('Please select at least one customer');
       return;
     }
-    navigate('/settlement', { state: { customers: selectedCustomers } });
+    navigate('/settlement', { state: { selectedCustomers: selectedCustomers } });
   };
 
   return (
