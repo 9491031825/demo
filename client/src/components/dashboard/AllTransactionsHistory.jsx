@@ -4,6 +4,8 @@ import { toast } from 'react-toastify';
 import DatePicker from 'react-datepicker';
 import { exportToExcel, exportToPDF } from '../../utils/exportUtils';
 import "react-datepicker/dist/react-datepicker.css";
+import { format } from 'date-fns';
+import { formatIndianNumber } from '../../utils/numberUtils';
 
 const TIME_FRAMES = [
   { value: 'today', label: "Today's Data" },
@@ -209,11 +211,11 @@ export default function AllTransactionsHistory({ customerId }) {
       const summaryData = {
         ...(activeView === 'purchases' ? {
           'Total Purchases': currentSummary.total_purchases || 0,
-          'Total Amount': `₹${(currentSummary.total_amount || 0).toFixed(2)}`,
-          'Total Quantity': (currentSummary.total_quantity || 0).toFixed(2)
+          'Total Amount': `₹${formatIndianNumber(currentSummary.total_amount || 0)}`,
+          'Total Quantity': formatIndianNumber(currentSummary.total_quantity || 0)
         } : {
           'Total Payments': currentSummary.total_payments || 0,
-          'Total Amount': `₹${(currentSummary.total_amount || 0).toFixed(2)}`,
+          'Total Amount': `₹${formatIndianNumber(currentSummary.total_amount || 0)}`,
           'Most Common Type': currentSummary.most_common_type || '-'
         })
       };
@@ -238,11 +240,17 @@ export default function AllTransactionsHistory({ customerId }) {
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <p className="text-2xl font-semibold">₹{(currentSummary.total_amount || 0).toFixed(2)}</p>
+            <div className="text-center">
+              <p className="text-gray-500">Total Amount</p>
+              <p className="text-2xl font-semibold">₹{formatIndianNumber(currentSummary.total_amount || 0)}</p>
+            </div>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Quantity</h3>
-            <p className="text-2xl font-semibold">{(currentSummary.total_quantity || 0).toFixed(2)}</p>
+            <div className="text-center">
+              <p className="text-gray-500">Total Quantity</p>
+              <p className="text-2xl font-semibold">{formatIndianNumber(currentSummary.total_quantity || 0)}</p>
+            </div>
           </div>
         </div>
       );
@@ -255,7 +263,10 @@ export default function AllTransactionsHistory({ customerId }) {
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <p className="text-2xl font-semibold">₹{(currentSummary.total_amount || 0).toFixed(2)}</p>
+            <div className="text-center">
+              <p className="text-gray-500">Total Amount</p>
+              <p className="text-2xl font-semibold">₹{formatIndianNumber(currentSummary.total_amount || 0)}</p>
+            </div>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Most Common Type</h3>
@@ -471,7 +482,7 @@ export default function AllTransactionsHistory({ customerId }) {
                       </>
                     )}
                     <td className="px-6 py-4 whitespace-nowrap">
-                      ₹{((activeView === 'purchases' ? transaction.total_amount : transaction.amount_paid) || 0).toFixed(2)}
+                      ₹{formatIndianNumber((activeView === 'purchases' ? transaction.total_amount : transaction.amount_paid) || 0)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
                       {transaction.created_by || '-'}

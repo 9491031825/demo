@@ -4,6 +4,7 @@ import { customerAPI, transactionAPI } from '../../services/api';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import AddBankAccountForm from './AddBankAccountForm';
+import { numberToWords, formatIndianNumber } from '../../utils/numberUtils';
 
 export default function SettlementPage() {
   const location = useLocation();
@@ -409,6 +410,11 @@ export default function SettlementPage() {
                       max={settlement.balance}
                       required
                     />
+                    {paymentDetails[index].payment_amount && parseFloat(paymentDetails[index].payment_amount) > 0 && (
+                      <p className="mt-1 text-sm text-gray-600 italic">
+                        {numberToWords(paymentDetails[index].payment_amount)}
+                      </p>
+                    )}
                   </div>
 
                   <div className="col-span-2">
@@ -426,15 +432,27 @@ export default function SettlementPage() {
                 <div className="grid grid-cols-3 gap-4 bg-gray-50 p-4 rounded-lg">
                   <div>
                     <span className="font-medium">Pending: </span>
-                    ₹{settlement.balance.toFixed(2)}
+                    ₹{formatIndianNumber(settlement.balance)}
                   </div>
                   <div>
                     <span className="font-medium">Payment: </span>
-                    ₹{(parseFloat(paymentDetails[index].payment_amount) || 0).toFixed(2)}
+                    ₹{formatIndianNumber(parseFloat(paymentDetails[index]?.payment_amount) || 0)}
                   </div>
+                  {paymentDetails[index].payment_amount && parseFloat(paymentDetails[index].payment_amount) > 0 && (
+                    <div className="col-span-3 text-sm text-gray-600 italic">
+                      <span>Amount in words: </span>
+                      <span>{numberToWords(paymentDetails[index].payment_amount)}</span>
+                    </div>
+                  )}
                   <div>
                     <span className="font-medium">Remaining: </span>
-                    ₹{settlement.remainingBalance.toFixed(2)}
+                    ₹{formatIndianNumber(settlement.remainingBalance)}
+                  </div>
+                  
+                  <div className="col-span-3 text-sm text-gray-600 italic">
+                    <span>Remaining balance in words: </span>
+                    <span>{numberToWords(Math.abs(settlement.remainingBalance))}</span>
+                    <span>{settlement.remainingBalance > 0 ? ' (Due)' : ' (Excess)'}</span>
                   </div>
                 </div>
 
@@ -480,27 +498,19 @@ export default function SettlementPage() {
         <div className="lg:grid lg:grid-cols-1 lg:gap-3 flex justify-between items-center">
           {/* For large screens - vertical layout */}
           <div className="lg:block hidden">
-            <div className="bg-blue-50 p-3 rounded-lg mb-3">
-              <p className="text-sm text-blue-600 font-medium">Total Pending</p>
-              <p className="text-xl font-bold text-blue-700">
-                ₹{settlements.reduce((sum, s) => sum + s.balance, 0).toFixed(2)}
-              </p>
+            <div className="flex justify-between font-semibold mb-2">
+              <span>Total Outstanding:</span>
+              <span>₹{formatIndianNumber(settlements.reduce((sum, s) => sum + s.balance, 0))}</span>
             </div>
-
-            <div className="bg-green-50 p-3 rounded-lg mb-3">
-              <p className="text-sm text-green-600 font-medium">Total Payment</p>
-              <p className="text-xl font-bold text-green-700">
-                ₹{settlements.reduce((sum, _, idx) => 
-                  sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0).toFixed(2)}
-              </p>
+            <div className="flex justify-between text-green-600 font-semibold mb-2">
+              <span>Total Payment:</span>
+              <span>₹{formatIndianNumber(settlements.reduce((sum, s, idx) => 
+                sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0))}</span>
             </div>
-
-            <div className="bg-yellow-50 p-3 rounded-lg mb-3">
-              <p className="text-sm text-yellow-600 font-medium">Total Remaining</p>
-              <p className="text-xl font-bold text-yellow-700">
-                ₹{settlements.reduce((sum, s, idx) => 
-                  sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0).toFixed(2)}
-              </p>
+            <div className="flex justify-between text-red-600 font-semibold">
+              <span>Remaining Balance:</span>
+              <span>₹{formatIndianNumber(settlements.reduce((sum, s, idx) => 
+                sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0))}</span>
             </div>
 
             <div className="text-sm text-gray-500 mt-2">
@@ -514,23 +524,34 @@ export default function SettlementPage() {
             <div className="text-center px-2">
               <p className="text-xs text-blue-600 font-medium">Pending</p>
               <p className="text-sm font-bold text-blue-700">
-                ₹{settlements.reduce((sum, s) => sum + s.balance, 0).toFixed(2)}
+                ₹{formatIndianNumber(settlements.reduce((sum, s) => sum + s.balance, 0))}
+              </p>
+              <p className="text-xs text-blue-600 italic">
+                {numberToWords(settlements.reduce((sum, s) => sum + s.balance, 0))}
               </p>
             </div>
 
             <div className="text-center px-2">
               <p className="text-xs text-green-600 font-medium">Payment</p>
               <p className="text-sm font-bold text-green-700">
-                ₹{settlements.reduce((sum, _, idx) => 
-                  sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0).toFixed(2)}
+                ₹{formatIndianNumber(settlements.reduce((sum, s, idx) => 
+                  sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0))}
+              </p>
+              <p className="text-xs text-green-600 italic">
+                {numberToWords(settlements.reduce((sum, s, idx) => 
+                  sum + (parseFloat(paymentDetails[idx]?.payment_amount) || 0), 0))}
               </p>
             </div>
 
             <div className="text-center px-2">
               <p className="text-xs text-yellow-600 font-medium">Remaining</p>
               <p className="text-sm font-bold text-yellow-700">
-                ₹{settlements.reduce((sum, s, idx) => 
-                  sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0).toFixed(2)}
+                ₹{formatIndianNumber(settlements.reduce((sum, s, idx) => 
+                  sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0))}
+              </p>
+              <p className="text-xs text-yellow-600 italic">
+                {numberToWords(Math.abs(settlements.reduce((sum, s, idx) => 
+                  sum + (s.balance - (parseFloat(paymentDetails[idx]?.payment_amount) || 0)), 0)))}
               </p>
             </div>
 

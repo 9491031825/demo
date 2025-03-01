@@ -45,7 +45,7 @@ venv/
 ENV/
 VENV/
 .venv/
-
+.DS_Store
 # IDE and Editor directories/files
 # PyCharm
 .idea/

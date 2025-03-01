@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../services/axios';
 import { toast } from 'react-toastify';
+import { format } from 'date-fns';
+import { formatIndianNumber } from '../../utils/numberUtils';
 
 const TIME_FRAMES = [
   { value: 'today', label: "Today's Stock" },
@@ -111,16 +113,16 @@ export default function PurchaseInsights({ customerId }) {
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <p className="text-2xl font-semibold">₹{(summary.total_amount || 0).toFixed(2)}</p>
+            <p className="text-2xl font-semibold">₹{formatIndianNumber(summary.total_amount || 0)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
             <h3 className="text-sm text-gray-500">Total Quantity</h3>
-            <p className="text-2xl font-semibold">{(summary.total_quantity || 0).toFixed(2)}</p>
+            <p className="text-2xl font-semibold">{formatIndianNumber(summary.total_quantity || 0)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
             <h3 className="text-sm text-gray-500">Average Purchase Amount</h3>
             <p className="text-2xl font-semibold">
-              ₹{(summary.total_amount / (summary.total_purchases || 1)).toFixed(2)}
+              ₹{formatIndianNumber(summary.total_amount / (summary.total_purchases || 1))}
             </p>
           </div>
         </div>
@@ -185,13 +187,13 @@ export default function PurchaseInsights({ customerId }) {
                       {insight.quality_type}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      {insight.quantity.toFixed(2)}
+                      {formatIndianNumber(insight.quantity)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      ₹{insight.rate.toFixed(2)}
+                      ₹{formatIndianNumber(insight.rate)}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      ₹{insight.total_amount.toFixed(2)}
+                      ₹{formatIndianNumber(insight.total_amount)}
                     </td>
                     <td className="px-6 py-4">
                       {insight.notes || '-'}

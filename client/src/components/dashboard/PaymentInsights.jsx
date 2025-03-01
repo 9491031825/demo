@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../services/axios';
 import { toast } from 'react-toastify';
+import { format } from 'date-fns';
+import { formatIndianNumber } from '../../utils/numberUtils';
 
 const TIME_FRAMES = [
   { value: 'today', label: "Today's Payments" },
@@ -111,11 +113,11 @@ export default function PaymentInsights({ customerId }) {
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <p className="text-2xl font-semibold">₹{(summary.total_amount || 0).toFixed(2)}</p>
+            <p className="text-2xl font-semibold">₹{formatIndianNumber(summary.total_amount || 0)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
             <h3 className="text-sm text-gray-500">Average Payment</h3>
-            <p className="text-2xl font-semibold">₹{(summary.average_payment || 0).toFixed(2)}</p>
+            <p className="text-2xl font-semibold">₹{formatIndianNumber(summary.average_payment || 0)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
             <h3 className="text-sm text-gray-500">Most Common Payment Type</h3>
@@ -189,7 +191,7 @@ export default function PaymentInsights({ customerId }) {
                       {insight.transaction_id || '-'}
                     </td>
                     <td className="px-6 py-4 whitespace-nowrap">
-                      ₹{insight.amount_paid.toFixed(2)}
+                      ₹{formatIndianNumber(insight.amount_paid)}
                     </td>
                     <td className="px-6 py-4">
                       {insight.notes || '-'}

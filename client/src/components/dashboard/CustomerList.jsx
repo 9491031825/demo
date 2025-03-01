@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import axios from '../../services/axios';
+import { Link } from 'react-router-dom';
+import { customerAPI } from '../../services/api';
+import { toast } from 'react-toastify';
+import { formatIndianNumber } from '../../utils/numberUtils';
 
 export default function CustomerList({ onClose }) {
   const [customers, setCustomers] = useState([]);
@@ -148,8 +152,10 @@ export default function CustomerList({ onClose }) {
                     {customer.gst_number || customer.pan_number || '-'}
                   </td>
                   <td className="px-4 py-2">{customer.email}</td>
-                  <td className="px-4 py-2">
-                    ₹{(customerBalances[customer.id] || 0).toFixed(2)}
+                  <td className="px-6 py-4 whitespace-nowrap">
+                    <span className={`${customerBalances[customer.id] > 0 ? 'text-red-600' : 'text-green-600'}`}>
+                      ₹{formatIndianNumber(customerBalances[customer.id] || 0)}
+                    </span>
                   </td>
                   <td className="px-4 py-2">
                     {renderBankPayments(customer.id)}

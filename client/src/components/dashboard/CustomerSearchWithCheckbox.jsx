@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { customerAPI } from '../../services/api';
 import { toast } from 'react-toastify';
+import { formatIndianNumber } from '../../utils/numberUtils';
 
 export default function CustomerSearchWithCheckbox({ selectedCustomers, setSelectedCustomers }) {
   const [searchQuery, setSearchQuery] = useState('');
@@ -30,6 +31,10 @@ export default function CustomerSearchWithCheckbox({ selectedCustomers, setSelec
         return [...prev, customer];
       }
     });
+  };
+
+  const formatBalance = (balance) => {
+    return balance !== null ? `₹${formatIndianNumber(balance)}` : '...';
   };
 
   return (
@@ -100,5 +105,9 @@ function CustomerBalance({ customerId }) {
     fetchBalance();
   }, [customerId]);
 
-  return balance !== null ? `₹${balance.toFixed(2)}` : '...';
+  const formatBalance = (balance) => {
+    return balance !== null ? `₹${formatIndianNumber(balance)}` : '...';
+  };
+
+  return formatBalance(balance);
 } 

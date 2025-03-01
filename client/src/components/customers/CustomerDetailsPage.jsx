@@ -7,7 +7,7 @@ import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { toast } from 'react-toastify';
 import DateRangeFilter from '../common/DateRangeFilter';
-
+import { formatIndianNumber } from '../../utils/numberUtils';
 export default function CustomerDetailsPage() {
   const { customerId } = useParams();
   const navigate = useNavigate();
@@ -385,21 +385,21 @@ export default function CustomerDetailsPage() {
           <div className="grid grid-cols-3 gap-4">
             <div className="text-center">
               <p className="text-gray-600">Total Pending</p>
-              <p className="text-xl font-semibold text-red-600">₹{balance.total_pending}</p>
+              <p className="text-xl font-semibold text-red-600">₹{formatIndianNumber(balance.total_pending)}</p>
             </div>
             <div className="text-center">
               <p className="text-gray-600">Total Paid</p>
-              <p className="text-xl font-semibold text-green-600">₹{balance.total_paid}</p>
+              <p className="text-xl font-semibold text-green-600">₹{formatIndianNumber(balance.total_paid)}</p>
             </div>
             <div className="text-center">
               <p className="text-gray-600">Net Balance</p>
               {balance.is_advance ? (
                 <p className="text-xl font-semibold text-yellow-500">
-                  ₹{balance.advance_amount} (Advance)
+                  ₹{formatIndianNumber(balance.advance_amount)} (Advance)
                 </p>
               ) : (
                 <p className="text-xl font-semibold text-red-600">
-                  ₹{Math.abs(balance.net_balance)}
+                  ₹{formatIndianNumber(Math.abs(balance.net_balance))}
                 </p>
               )}
             </div>

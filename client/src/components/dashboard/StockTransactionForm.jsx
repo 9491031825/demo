@@ -5,6 +5,7 @@ import { toast } from 'react-toastify';
 import axios from '../../services/axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { transactionAPI, customerAPI } from '../../services/api';
+import { numberToWords, formatIndianNumber } from '../../utils/numberUtils';
 
 export default function StockTransactionForm() {
   const { customerId } = useParams();
@@ -79,7 +80,7 @@ export default function StockTransactionForm() {
   const calculateRowTotal = (transaction) => {
     const quantity = parseFloat(transaction.quantity) || 0;
     const rate = parseFloat(transaction.rate) || 0;
-    return (quantity * rate).toFixed(2);
+    return quantity * rate;
   };
 
   const calculateGrandTotal = () => {
@@ -182,27 +183,46 @@ export default function StockTransactionForm() {
   const handleBack = () => navigate('/dashboard');
 
   const renderTotalCalculation = () => (
-    <div className="mt-4 space-y-2 p-4 bg-gray-50 rounded-md">
-      <div className="flex justify-between">
-        <span>Existing Balance:</span>
-        <span className={totalAmounts.existingBalance > 0 ? 'text-red-600' : 'text-green-600'}>
-          ₹{Math.abs(totalAmounts.existingBalance).toFixed(2)}
-          {totalAmounts.existingBalance > 0 ? ' (Due)' : ' (Advance)'}
-        </span>
-      </div>
-      <div className="flex justify-between">
-        <span>New Stock Value:</span>
-        <span className="text-red-600">₹{totalAmounts.newStock.toFixed(2)}</span>
-      </div>
-      <div className="border-t pt-2 flex justify-between font-bold">
-        <span>Final Balance:</span>
-        <span className={totalAmounts.finalBalance > 0 ? 'text-red-600' : 'text-green-600'}>
-          ₹{Math.abs(totalAmounts.finalBalance).toFixed(2)}
-          {totalAmounts.finalBalance > 0 ? ' (Due)' : ' (Advance)'}
-        </span>
+    <div className="mb-6 space-y-2">
+      <h3 className="text-lg font-medium">Transaction Calculation</h3>
+      <div className="grid grid-cols-1 gap-4 p-4 bg-gray-50 rounded-md">
+        <div className="flex justify-between">
+          <span>Existing Balance:</span>
+          <span className={totalAmounts.existingBalance > 0 ? 'text-red-600' : 'text-green-600'}>
+            ₹{formatIndianNumber(Math.abs(totalAmounts.existingBalance))}
+            {totalAmounts.existingBalance > 0 ? ' (Due)' : ' (Advance)'}
+          </span>
+        </div>
+        <div className="flex justify-between">
+          <span>New Transaction:</span>
+          <span className="text-red-600">₹{formatIndianNumber(totalAmounts.newStock)}</span>
+        </div>
+        {totalAmounts.newStock > 0 && (
+          <div className="text-sm text-gray-600 italic">
+            <span>Amount in words: </span>
+            <span>{numberToWords(totalAmounts.newStock)}</span>
+          </div>
+        )}
+        <div className="border-t pt-2 flex justify-between font-bold">
+          <span>Final Balance:</span>
+          <span className={totalAmounts.finalBalance > 0 ? 'text-red-600' : 'text-green-600'}>
+            ₹{formatIndianNumber(Math.abs(totalAmounts.finalBalance))}
+            {totalAmounts.finalBalance > 0 ? ' (Due)' : ' (Advance)'}
+          </span>
+        </div>
+        <div className="text-sm text-gray-600 italic">
+          <span>Final balance in words: </span>
+          <span>{numberToWords(Math.abs(totalAmounts.finalBalance))}</span>
+          <span>{totalAmounts.finalBalance > 0 ? ' (Due)' : ' (Advance)'}</span>
+        </div>
       </div>
     </div>
   );
+
+  const calculateItemTotal = (quantity, rate) => {
+    if (!quantity || !rate) return 0;
+    return formatIndianNumber(quantity * rate);
+  };
 
   return (
     <div className="space-y-6">
@@ -268,13 +288,13 @@ export default function StockTransactionForm() {
             <div>
               <p className="text-sm text-gray-500">Total Pending</p>
               <p className="text-xl font-semibold text-red-600">
-                ₹{parseFloat(customerBalance.total_pending).toFixed(2)}
+                ₹{formatIndianNumber(parseFloat(customerBalance.total_pending))}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Paid</p>
               <p className="text-xl font-semibold text-green-600">
-                ₹{parseFloat(customerBalance.total_paid).toFixed(2)}
+                ₹{formatIndianNumber(parseFloat(customerBalance.total_paid))}
               </p>
             </div>
             <div>
@@ -282,7 +302,7 @@ export default function StockTransactionForm() {
               <p className={`text-xl font-semibold ${
                 customerBalance.net_balance > 0 ? 'text-red-600' : 'text-green-600'
               }`}>
-                ₹{Math.abs(parseFloat(customerBalance.net_balance)).toFixed(2)}
+                ₹{formatIndianNumber(Math.abs(parseFloat(customerBalance.net_balance)))}
                 {customerBalance.net_balance > 0 ? ' (Due)' : ' (Advance)'}
               </p>
             </div>
@@ -335,6 +355,11 @@ export default function StockTransactionForm() {
                 >
                   Remove
                 </button>
+                {transaction.total > 0 && (
+                  <div className="col-span-5 text-sm text-gray-600 italic">
+                    {numberToWords(transaction.total)}
+                  </div>
+                )}
               </div>
             ))}
           </div>
@@ -348,8 +373,8 @@ export default function StockTransactionForm() {
               >
                 + Add Row
               </button>
-              <div className="text-xl font-semibold">
-                New Stock Total: ₹{calculateGrandTotal().toFixed(2)}
+              <div className="text-lg font-semibold mb-4">
+                New Stock Total: ₹{formatIndianNumber(calculateGrandTotal())}
               </div>
             </div>
             {renderTotalCalculation()}

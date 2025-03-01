@@ -6,6 +6,7 @@ import { transactionAPI, customerAPI } from '../../services/api';
 import { format } from 'date-fns';
 import Modal from '../common/Modal';
 import AddBankAccountForm from './AddBankAccountForm';
+import { numberToWords, formatIndianNumber } from '../../utils/numberUtils';
 
 export default function PaymentTransactionForm() {
   const { customerId } = useParams();
@@ -212,20 +213,32 @@ export default function PaymentTransactionForm() {
         <div className="flex justify-between">
           <span>Existing Balance:</span>
           <span className={totalAmounts.existingBalance > 0 ? 'text-red-600' : 'text-green-600'}>
-            ₹{Math.abs(totalAmounts.existingBalance).toFixed(2)}
+            ₹{formatIndianNumber(Math.abs(totalAmounts.existingBalance))}
             {totalAmounts.existingBalance > 0 ? ' (Due)' : ' (Advance)'}
           </span>
         </div>
         <div className="flex justify-between">
           <span>New Payment:</span>
-          <span className="text-green-600">₹{totalAmounts.newPayment.toFixed(2)}</span>
+          <span className="text-green-600">₹{formatIndianNumber(totalAmounts.newPayment)}</span>
         </div>
+        {totalAmounts.newPayment > 0 && (
+          <div className="text-sm text-gray-600 italic">
+            <span>Amount in words: </span>
+            <span>{numberToWords(totalAmounts.newPayment)}</span>
+          </div>
+        )}
         <div className="border-t pt-2 flex justify-between font-bold">
           <span>Final Balance:</span>
           <span className={totalAmounts.finalBalance > 0 ? 'text-red-600' : 'text-green-600'}>
-            ₹{Math.abs(totalAmounts.finalBalance).toFixed(2)}
+            ₹{formatIndianNumber(Math.abs(totalAmounts.finalBalance))}
             {totalAmounts.finalBalance > 0 ? ' (Due)' : ' (Advance)'}
           </span>
+        </div>
+        
+        <div className="text-sm text-gray-600 italic">
+          <span>Final balance in words: </span>
+          <span>{numberToWords(Math.abs(totalAmounts.finalBalance))}</span>
+          <span>{totalAmounts.finalBalance > 0 ? ' (Due)' : ' (Advance)'}</span>
         </div>
       </div>
     </div>
@@ -347,13 +360,13 @@ export default function PaymentTransactionForm() {
             <div>
               <p className="text-sm text-gray-500">Total Pending</p>
               <p className="text-xl font-semibold text-red-600">
-                ₹{parseFloat(customerBalance.total_pending).toFixed(2)}
+                ₹{formatIndianNumber(parseFloat(customerBalance.total_pending))}
               </p>
             </div>
             <div>
               <p className="text-sm text-gray-500">Total Paid</p>
               <p className="text-xl font-semibold text-green-600">
-                ₹{parseFloat(customerBalance.total_paid).toFixed(2)}
+                ₹{formatIndianNumber(parseFloat(customerBalance.total_paid))}
               </p>
             </div>
             <div>
@@ -361,7 +374,7 @@ export default function PaymentTransactionForm() {
               <p className={`text-xl font-semibold ${
                 customerBalance.net_balance > 0 ? 'text-red-600' : 'text-green-600'
               }`}>
-                ₹{Math.abs(parseFloat(customerBalance.net_balance)).toFixed(2)}
+                ₹{formatIndianNumber(Math.abs(parseFloat(customerBalance.net_balance)))}
                 {customerBalance.net_balance > 0 ? ' (Due)' : ' (Advance)'}
               </p>
             </div>
@@ -495,6 +508,11 @@ export default function PaymentTransactionForm() {
                 min="0"
                 step="0.01"
               />
+              {paymentDetails.payment_amount && parseFloat(paymentDetails.payment_amount) > 0 && (
+                <p className="mt-1 text-sm text-gray-600 italic">
+                  {numberToWords(paymentDetails.payment_amount)}
+                </p>
+              )}
             </div>
 
             {/* Notes */}
@@ -540,7 +558,7 @@ export default function PaymentTransactionForm() {
                 <div>
                   <span className="text-sm mr-2">
                     Unallocated: <span className={unallocatedAmount < 0 ? 'text-red-600' : 'text-green-600'}>
-                      ₹{unallocatedAmount.toFixed(2)}
+                      ₹{formatIndianNumber(unallocatedAmount)}
                     </span>
                   </span>
                   <button
@@ -580,10 +598,10 @@ export default function PaymentTransactionForm() {
                             Quantity: {transaction.quantity} @ ₹{transaction.rate}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
-                            ₹{parseFloat(transaction.total).toFixed(2)}
+                            ₹{formatIndianNumber(parseFloat(transaction.total))}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
-                            ₹{parseFloat(transaction.balance).toFixed(2)}
+                            ₹{formatIndianNumber(parseFloat(transaction.balance))}
                           </td>
                           <td className="px-4 py-2 whitespace-nowrap">
                             <input
