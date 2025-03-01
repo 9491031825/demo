@@ -11,6 +11,7 @@ import CustomerListPage from './components/customers/CustomerListPage';
 import CustomerDetailsPage from './components/customers/CustomerDetailsPage';
 import BulkSettlementPage from './components/dashboard/BulkSettlementPage';
 import SettlementPage from './components/dashboard/SettlementPage';
+import { disableNumberInputScrolling } from './utils/inputUtils';
 
 function App() {
   const AdminRedirect = () => {
@@ -19,6 +20,11 @@ function App() {
     }, []);
     return null;
   };
+
+  // Disable scroll wheel on number inputs when the app loads
+  useEffect(() => {
+    disableNumberInputScrolling();
+  }, []);
 
   return (
     <Router>

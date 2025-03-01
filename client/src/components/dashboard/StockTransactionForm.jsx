@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { createTransaction } from '../../store/slices/transactionSlice';
 import { toast } from 'react-toastify';
@@ -6,10 +6,13 @@ import axios from '../../services/axios';
 import { useParams, useNavigate } from 'react-router-dom';
 import { transactionAPI, customerAPI } from '../../services/api';
 import { numberToWords, formatIndianNumber } from '../../utils/numberUtils';
+import { useDisableNumberInputScroll } from '../../hooks/useNumberInputs';
 
 export default function StockTransactionForm() {
   const { customerId } = useParams();
   const navigate = useNavigate();
+  const formRef = useRef(null);
+  useDisableNumberInputScroll(formRef);
   const [transactions, setTransactions] = useState([{
     quality_type: '',
     quantity: '',
@@ -47,7 +50,7 @@ export default function StockTransactionForm() {
   });
 
   const dispatch = useDispatch();
-  const qualityTypes = ['Type 1', 'Type 2', 'Type 3'];
+  const qualityTypes = ['Type 1', 'Type 2', 'Type 3', 'Type 4'];
 
   useEffect(() => {
     const fetchData = async () => {
@@ -309,7 +312,7 @@ export default function StockTransactionForm() {
           </div>
         </div>
 
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSubmit} ref={formRef}>
           <div className="space-y-4">
             {transactions.map((transaction, index) => (
               <div key={index} className="grid grid-cols-5 gap-4 items-center">

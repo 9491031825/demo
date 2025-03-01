@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useDispatch } from 'react-redux';
 import { toast } from 'react-toastify';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -7,10 +7,15 @@ import { format } from 'date-fns';
 import Modal from '../common/Modal';
 import AddBankAccountForm from './AddBankAccountForm';
 import { numberToWords, formatIndianNumber } from '../../utils/numberUtils';
+import { useDisableNumberInputScroll } from '../../hooks/useNumberInputs';
 
 export default function PaymentTransactionForm() {
   const { customerId } = useParams();
   const navigate = useNavigate();
+  const formRef = useRef(null);
+  // Use our custom hook to disable scroll wheel on number inputs
+  useDisableNumberInputScroll(formRef);
+  
   const [paymentDetails, setPaymentDetails] = useState({
     payment_type: 'cash',
     payment_amount: '',
@@ -50,10 +55,8 @@ export default function PaymentTransactionForm() {
     finalBalance: 0
   });
 
-  // Add state for pending transactions and allocation
+  // Add state for pending transactions
   const [pendingTransactions, setPendingTransactions] = useState([]);
-  const [manualAllocation, setManualAllocation] = useState(false);
-  const [allocations, setAllocations] = useState({});
 
   // Modify the bank account form state to include modal visibility
   const [showBankModal, setShowBankModal] = useState(false);
@@ -89,16 +92,9 @@ export default function PaymentTransactionForm() {
         setCustomerDetails(customerData);
         setBankAccounts(bankAccountsData);
         
-        // Set pending transactions and initialize allocations
+        // Set pending transactions
         const pendingTx = pendingTxResponse.results || [];
         setPendingTransactions(pendingTx);
-        
-        // Initialize allocations object with transaction IDs and zero amounts
-        const initialAllocations = {};
-        pendingTx.forEach(tx => {
-          initialAllocations[tx.id] = 0;
-        });
-        setAllocations(initialAllocations);
         
       } catch (error) {
         console.error('Failed to fetch data:', error);
@@ -244,55 +240,6 @@ export default function PaymentTransactionForm() {
     </div>
   );
 
-  // Add handler for allocation changes
-  const handleAllocationChange = (transactionId, amount) => {
-    // Validate amount is not negative and not more than the transaction balance
-    const tx = pendingTransactions.find(t => t.id === transactionId);
-    const maxAmount = parseFloat(tx.balance);
-    let validAmount = Math.min(parseFloat(amount) || 0, maxAmount);
-    validAmount = Math.max(0, validAmount);
-    
-    setAllocations(prev => ({
-      ...prev,
-      [transactionId]: validAmount
-    }));
-  };
-
-  // Calculate total allocated amount
-  const totalAllocated = Object.values(allocations).reduce((sum, amount) => sum + parseFloat(amount || 0), 0);
-  
-  // Calculate remaining unallocated amount
-  const paymentAmount = parseFloat(paymentDetails.payment_amount) || 0;
-  const unallocatedAmount = paymentAmount - totalAllocated;
-
-  // Add function to auto-distribute remaining amount
-  const autoDistributeRemaining = () => {
-    if (unallocatedAmount <= 0) return;
-    
-    // Sort transactions by creation date (oldest first)
-    const sortedTransactions = [...pendingTransactions].sort((a, b) => 
-      new Date(a.created_at) - new Date(b.created_at)
-    );
-    
-    let remaining = unallocatedAmount;
-    const newAllocations = {...allocations};
-    
-    for (const tx of sortedTransactions) {
-      if (remaining <= 0) break;
-      
-      const currentAllocation = parseFloat(newAllocations[tx.id]) || 0;
-      const maxMoreToAllocate = parseFloat(tx.balance) - currentAllocation;
-      
-      if (maxMoreToAllocate > 0) {
-        const amountToAdd = Math.min(remaining, maxMoreToAllocate);
-        newAllocations[tx.id] = currentAllocation + amountToAdd;
-        remaining -= amountToAdd;
-      }
-    }
-    
-    setAllocations(newAllocations);
-  };
-
   return (
     <div className="space-y-6">
       <div className="bg-white p-6 rounded-lg shadow">
@@ -382,7 +329,7 @@ export default function PaymentTransactionForm() {
         </div>
 
         {/* Payment Form */}
-        <form onSubmit={handleSubmit} className="space-y-6">
+        <form onSubmit={handleSubmit} className="space-y-6" ref={formRef}>
           <div className="grid grid-cols-2 gap-4">
             {/* Payment Type Selection */}
             <div className="col-span-2">
@@ -533,95 +480,6 @@ export default function PaymentTransactionForm() {
           </div>
 
           {renderTotalCalculation()}
-
-          {/* Manual Allocation Toggle */}
-          <div className="col-span-1 md:col-span-2 mt-4">
-            <div className="flex items-center">
-              <input
-                type="checkbox"
-                id="manualAllocation"
-                checked={manualAllocation}
-                onChange={() => setManualAllocation(!manualAllocation)}
-                className="rounded border-gray-300 text-indigo-600 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-              />
-              <label htmlFor="manualAllocation" className="ml-2 block text-sm font-medium text-gray-700">
-                Manually allocate payment to specific transactions
-              </label>
-            </div>
-          </div>
-
-          {/* Manual Allocation Section */}
-          {manualAllocation && pendingTransactions.length > 0 && (
-            <div className="mb-6">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold">Payment Allocation</h3>
-                <div>
-                  <span className="text-sm mr-2">
-                    Unallocated: <span className={unallocatedAmount < 0 ? 'text-red-600' : 'text-green-600'}>
-                      ₹{formatIndianNumber(unallocatedAmount)}
-                    </span>
-                  </span>
-                  <button
-                    type="button"
-                    onClick={autoDistributeRemaining}
-                    disabled={unallocatedAmount <= 0}
-                    className="px-2 py-1 bg-blue-500 text-white text-sm rounded hover:bg-blue-600 disabled:bg-gray-300"
-                  >
-                    Auto-Distribute Remaining
-                  </button>
-                </div>
-              </div>
-              
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead>
-                      <tr>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Details</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Total</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
-                        <th className="px-4 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Allocate</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-gray-200">
-                      {pendingTransactions.map(transaction => (
-                        <tr key={transaction.id}>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            {new Date(transaction.transaction_date).toLocaleDateString()}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            {transaction.quality_type}
-                          </td>
-                          <td className="px-4 py-2">
-                            Quantity: {transaction.quantity} @ ₹{transaction.rate}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            ₹{formatIndianNumber(parseFloat(transaction.total))}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            ₹{formatIndianNumber(parseFloat(transaction.balance))}
-                          </td>
-                          <td className="px-4 py-2 whitespace-nowrap">
-                            <input
-                              type="number"
-                              value={allocations[transaction.id] || ''}
-                              onChange={(e) => handleAllocationChange(transaction.id, e.target.value)}
-                              className="w-24 rounded-md border-gray-300 shadow-sm focus:border-indigo-300 focus:ring focus:ring-indigo-200 focus:ring-opacity-50"
-                              min="0"
-                              max={transaction.balance}
-                              step="0.01"
-                            />
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            </div>
-          )}
 
           {/* Submit Button */}
           <div className="flex justify-end space-x-2">

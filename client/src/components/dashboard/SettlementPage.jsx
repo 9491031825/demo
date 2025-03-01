@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { customerAPI, transactionAPI } from '../../services/api';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
 import AddBankAccountForm from './AddBankAccountForm';
 import { numberToWords, formatIndianNumber } from '../../utils/numberUtils';
+import { useDisableNumberInputScroll } from '../../hooks/useNumberInputs';
 
 export default function SettlementPage() {
   const location = useLocation();
@@ -18,6 +19,10 @@ export default function SettlementPage() {
 
   // Initialize paymentDetails as an empty array first
   const [paymentDetails, setPaymentDetails] = useState([]);
+
+  const formRef = useRef(null);
+  // Use our custom hook to disable scroll wheel on number inputs
+  useDisableNumberInputScroll(formRef);
 
   useEffect(() => {
     const initializeSettlements = async () => {
@@ -270,7 +275,7 @@ export default function SettlementPage() {
   const totals = getTotals();
 
   return (
-    <div className="p-6 max-w-7xl mx-auto relative">
+    <div className="p-6 max-w-7xl mx-auto relative" ref={formRef}>
       {/* Bank Account Form Modal */}
       {showBankAccountForm && selectedCustomerIndex !== null && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">

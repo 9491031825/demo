@@ -1,8 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { customerAPI } from '../../services/api';
 import { toast } from 'react-toastify';
+import { useDisableNumberInputScroll } from '../../hooks/useNumberInputs';
 
 export default function AddBankAccountForm({ customerId, onSuccess }) {
+  const formRef = useRef(null);
+  // Use our custom hook to disable scroll wheel on number inputs
+  useDisableNumberInputScroll(formRef);
+  
   const [formData, setFormData] = useState({
     account_holder_name: '',
     bank_name: '',
@@ -73,7 +78,7 @@ export default function AddBankAccountForm({ customerId, onSuccess }) {
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
+    <form onSubmit={handleSubmit} className="space-y-4" ref={formRef}>
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded">
           {error}

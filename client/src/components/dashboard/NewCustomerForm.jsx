@@ -1,8 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import axios from '../../services/axios';
 import { toast } from 'react-hot-toast';
+import { useDisableNumberInputScroll } from '../../hooks/useNumberInputs';
 
 export default function NewCustomerForm() {
+  const formRef = useRef(null);
+  // Use our custom hook to disable scroll wheel on number inputs
+  useDisableNumberInputScroll(formRef);
+  
   const [formData, setFormData] = useState({
     name: '',
     phone_number: '',
@@ -28,10 +33,20 @@ export default function NewCustomerForm() {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    // Apply special formatting for Aadhaar number
+    if (name === 'aadhaar_number') {
+      const formattedValue = formatAadhaarNumber(value);
+      setFormData(prev => ({
+        ...prev,
+        [name]: formattedValue
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleBankAccountChange = (index, e) => {
@@ -96,7 +111,7 @@ export default function NewCustomerForm() {
         address: formData.address,
         gst_number: formData.gst_number,
         pan_number: formData.pan_number,
-        aadhaar_number: formData.aadhaar_number,
+        aadhaar_number: formData.aadhaar_number.replace(/\s/g, ''), // Remove spaces before sending
         company_name: formData.company_name
       });
 
@@ -159,9 +174,17 @@ export default function NewCustomerForm() {
     }
   };
 
+  // Format Aadhaar number with spaces after every 4 digits
+  const formatAadhaarNumber = (value) => {
+    // Remove any existing spaces
+    const digitsOnly = value.replace(/\s/g, '');
+    // Add a space after every 4 characters
+    return digitsOnly.replace(/(.{4})/g, '$1 ').trim();
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-6" ref={formRef}>
         {success && (
           <div className="bg-green-50 border border-green-200 text-green-700 px-4 py-3 rounded">
             Customer created successfully!
@@ -330,15 +353,13 @@ export default function NewCustomerForm() {
               name="aadhaar_number"
               id="aadhaar_number"
               required
-              maxLength="12"
-              pattern="\d{12}"
-              title="Please enter a valid 12-digit Aadhaar number"
+              maxLength="14" // Increased to account for spaces (12 digits + 2 spaces)
               value={formData.aadhaar_number}
               onChange={handleChange}
               className="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500"
             />
             <p className="mt-1 text-sm text-gray-500">
-              12-digit Aadhaar number
+              12-digit Aadhaar number (format: XXXX XXXX XXXX)
             </p>
           </div>
 
