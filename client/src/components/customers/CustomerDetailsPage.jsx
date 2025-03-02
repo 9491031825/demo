@@ -55,7 +55,20 @@ export default function CustomerDetailsPage() {
   }, [customerId, currentPage, pageSize]);
 
   const formatDate = (date) => {
-    return new Date(date).toLocaleDateString('en-IN');
+    if (!date) return '';
+    
+    // Create a new date object to ensure proper parsing
+    const dateObj = new Date(date);
+    
+    // Check if date is valid
+    if (isNaN(dateObj.getTime())) return '';
+    
+    // Format date consistently as DD/MM/YYYY for Indian format
+    return dateObj.toLocaleDateString('en-IN', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric'
+    });
   };
 
   const formatCurrency = (amount) => {
@@ -140,41 +153,99 @@ export default function CustomerDetailsPage() {
   };
 
   const prepareExportData = (transactions) => {
-    return transactions.map(tx => ({
-      date: formatDate(tx.transaction_date),
-      time: new Date(tx.transaction_date + 'T' + tx.transaction_time).toLocaleTimeString(),
-      type: tx.transaction_type === 'stock' ? 'Stock Purchase' : 'Payment',
-      details: tx.transaction_type === 'stock' ? 
-        `${tx.quality_type} - Qty: ${tx.quantity} @ ₹${tx.rate}` : 
-        `Payment via ${tx.payment_type}`,
-      bank_account: tx.bank_account ? 
-        `${tx.bank_account.bank_name} - ${tx.bank_account.account_number}` : 
-        '-',
-      amount: formatCurrency(tx.total),
-      status: tx.payment_status,
-      balance: formatCurrency(parseFloat(tx.running_balance) || 0),
-      notes: tx.notes || '-'
-    }));
+    return transactions.map(tx => {
+      // Format stock details without the problematic spacing
+      let details = '';
+      if (tx.transaction_type === 'stock') {
+        details = `${tx.quality_type} - Qty: ${tx.quantity} @ ₹${tx.rate.toString()}`;
+      } else {
+        details = `Payment via ${tx.payment_type}`;
+      }
+      
+      return {
+        date: formatDate(tx.transaction_date),
+        time: new Date(tx.transaction_date + 'T' + tx.transaction_time).toLocaleTimeString(),
+        type: tx.transaction_type === 'stock' ? 'Stock Purchase' : 'Payment',
+        details: details,
+        bank_account: tx.bank_account ? 
+          `${tx.bank_account.bank_name} - ${tx.bank_account.account_number}` : 
+          '-',
+        amount: tx.total.toString(),
+        status: tx.payment_status || '-',
+        balance: tx.running_balance ? tx.running_balance.toString() : '0',
+        notes: tx.notes || '-'
+      };
+    });
   };
 
   const handleExport = (type) => {
     const dataToExport = prepareExportData(filteredTransactions !== null ? filteredTransactions : transactions);
     const fileName = `${customer?.name || 'customer'}_transactions_${formatDate(new Date())}`;
     
+    // Determine the correct date range
+    let dateRange = 'All Time';
+    
+    if (currentDateRange) {
+      // Use the stored date range from filter if available
+      dateRange = `${currentDateRange.startDate} to ${currentDateRange.endDate}`;
+    } else if (filteredTransactions !== null && filteredTransactions.length > 0) {
+      // If we have filtered transactions but no stored range, calculate it from the data
+      const sortedTransactions = [...filteredTransactions].sort(
+        (a, b) => new Date(a.transaction_date) - new Date(b.transaction_date)
+      );
+      
+      const firstDate = formatDate(sortedTransactions[0].transaction_date);
+      const lastDate = formatDate(sortedTransactions[sortedTransactions.length - 1].transaction_date);
+      dateRange = `${firstDate} to ${lastDate}`;
+    } else if (transactions.length > 0) {
+      // For all transactions, show the full date range
+      const sortedTransactions = [...transactions].sort(
+        (a, b) => new Date(a.transaction_date) - new Date(b.transaction_date)
+      );
+      
+      const firstDate = formatDate(sortedTransactions[0].transaction_date);
+      const lastDate = formatDate(sortedTransactions[sortedTransactions.length - 1].transaction_date);
+      dateRange = `${firstDate} to ${lastDate}`;
+    }
+      
+    // Create a summary for both Excel and PDF exports
+    const summary = {
+      name: customer?.name || '',
+      phone_number: customer?.phone_number || '',
+      company_name: customer?.company_name || '',
+      dateRange: dateRange,
+      balance: {
+        totalPending: balance?.total_pending || 0,
+        totalPaid: balance?.total_paid || 0,
+        netBalance: balance?.net_balance || 0,
+        isAdvance: balance?.is_advance || false,
+        advanceAmount: balance?.advance_amount || 0
+      },
+      // PDF layout configuration
+      pdfOptions: {
+        fontSize: 9,
+        headerFontSize: 10,
+        landscape: true,
+        columnWidths: {
+          date: '8%',
+          time: '8%',
+          type: '12%',
+          details: '25%',
+          bank_account: '15%',
+          amount: '10%',
+          status: '7%',
+          balance: '8%',
+          notes: '7%'
+        },
+        standardFonts: true,
+        wordBreak: true
+      }
+    };
+    
     if (type === 'excel') {
-      exportToExcel(dataToExport, fileName);
+      exportToExcel(dataToExport, fileName, summary);
     } else {
-      // For PDF, include date range info if filtered
-      const dateRange = filteredTransactions !== null && filteredTransactions.length > 0 ? 
-        `${formatDate(new Date(filteredTransactions[0].transaction_date))} to ${formatDate(new Date(filteredTransactions[filteredTransactions.length - 1].transaction_date))}` : 
-        'All Time';
-        
-      exportToPDF(dataToExport, fileName, {
-        name: customer?.name || '',
-        phone_number: customer?.phone_number || '',
-        company_name: customer?.company_name || '',
-        dateRange: dateRange
-      });
+      exportToPDF(dataToExport, fileName, summary);
     }
   };
 

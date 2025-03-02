@@ -2,10 +2,73 @@ import * as XLSX from 'xlsx';
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 
-export const exportToExcel = (data, fileName) => {
-  const ws = XLSX.utils.json_to_sheet(data);
+export const exportToExcel = (data, fileName, customerInfo) => {
+  // Create workbook and worksheet
   const wb = XLSX.utils.book_new();
+  
+  // Create header rows with customer information
+  const headerRows = [
+    ['Customer Transaction History'],
+    [''],
+    [`Customer: ${customerInfo.name}`],
+    [`Phone: ${customerInfo.phone_number}`],
+    [`Company: ${customerInfo.company_name || 'N/A'}`],
+    [`Period: ${customerInfo.dateRange || 'All Time'}`],
+    ['']
+  ];
+  
+  // Add balance information if available
+  if (customerInfo.balance) {
+    headerRows.push([`Total Pending: ₹${customerInfo.balance.totalPending}`]);
+    headerRows.push([`Total Paid: ₹${customerInfo.balance.totalPaid}`]);
+    
+    if (customerInfo.balance.isAdvance) {
+      headerRows.push([`Advance Amount: ₹${customerInfo.balance.advanceAmount}`]);
+    } else {
+      headerRows.push([`Net Balance: ₹${Math.abs(customerInfo.balance.netBalance)}`]);
+    }
+    
+    headerRows.push(['']);
+  }
+  
+  // Add a separator row
+  headerRows.push(['Transaction Details:']);
+  headerRows.push(['']);
+  
+  // Convert data to worksheet
+  const ws = XLSX.utils.json_to_sheet([]);
+  
+  // Add header rows to worksheet
+  XLSX.utils.sheet_add_aoa(ws, headerRows, { origin: 'A1' });
+  
+  // Add data starting after the header
+  XLSX.utils.sheet_add_json(ws, data, { 
+    origin: `A${headerRows.length + 1}`, 
+    skipHeader: false 
+  });
+  
+  // Set column widths
+  const columnWidths = [
+    { wch: 12 },  // Date
+    { wch: 12 },  // Time
+    { wch: 15 },  // Type
+    { wch: 30 },  // Details
+    { wch: 25 },  // Bank Account
+    { wch: 15 },  // Amount
+    { wch: 10 },  // Status
+    { wch: 15 },  // Balance
+    { wch: 20 }   // Notes
+  ];
+  
+  ws['!cols'] = columnWidths;
+  
+  // Style the header (bold, larger font)
+  // Note: XLSX styling is limited in the free version
+  
+  // Add the worksheet to the workbook
   XLSX.utils.book_append_sheet(wb, ws, "Transactions");
+  
+  // Write to file
   XLSX.writeFile(wb, `${fileName}.xlsx`);
 };
 
