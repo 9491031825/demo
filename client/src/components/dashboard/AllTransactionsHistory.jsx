@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../../services/axios';
 import { toast } from 'react-toastify';
 import DatePicker from 'react-datepicker';
@@ -14,7 +14,7 @@ const TIME_FRAMES = [
   { value: 'all', label: 'All Time' }
 ];
 
-const QUALITY_TYPES = ['Type 1', 'Type 2', 'Type 3'];
+const QUALITY_TYPES = ['Type 1', 'Type 2', 'Type 3', 'Type 4'];
 const PAYMENT_TYPES = ['cash', 'bank', 'upi'];
 
 export default function AllTransactionsHistory({ customerId }) {
@@ -28,6 +28,53 @@ export default function AllTransactionsHistory({ customerId }) {
   const [loading, setLoading] = useState(false);
   const [startDate, setStartDate] = useState(null);
   const [endDate, setEndDate] = useState(null);
+  const [stockData, setStockData] = useState({});
+  const [stockLoading, setStockLoading] = useState(false);
+
+  // Fetch current stock data for all quality types
+  useEffect(() => {
+    const fetchStockData = async () => {
+      try {
+        setStockLoading(true);
+        const response = await axios.get('/api/inventory/current-stock');
+        setStockData(response.data || {});
+      } catch (error) {
+        console.error('Error fetching stock data:', error);
+      } finally {
+        setStockLoading(false);
+      }
+    };
+
+    fetchStockData();
+  }, []);
+
+  // Calculate stock by quality type
+  const stockByQualityType = useMemo(() => {
+    const stockMap = {};
+    
+    // Initialize stock for each quality type
+    QUALITY_TYPES.forEach(type => {
+      stockMap[type] = 0;
+    });
+    
+    // If we have stock data from the API, use it
+    if (stockData.by_quality_type) {
+      Object.entries(stockData.by_quality_type).forEach(([type, quantity]) => {
+        if (QUALITY_TYPES.includes(type)) {
+          stockMap[type] = quantity;
+        }
+      });
+    } else {
+      // Calculate from transactions if API data not available
+      transactions.forEach(transaction => {
+        if (transaction.type === 'purchase' && transaction.quality_type && transaction.quantity) {
+          stockMap[transaction.quality_type] = (stockMap[transaction.quality_type] || 0) + transaction.quantity;
+        }
+      });
+    }
+    
+    return stockMap;
+  }, [stockData, transactions]);
 
   const fetchTransactions = async () => {
     try {
@@ -177,6 +224,12 @@ export default function AllTransactionsHistory({ customerId }) {
   const currentSummary = currentData !== transactions ? calculateFilteredSummary(currentData) : summary;
 
   const prepareExportData = (transactions) => {
+    // Add stock information to export data
+    const stockInfo = {};
+    QUALITY_TYPES.forEach(type => {
+      stockInfo[`Current Stock (${type})`] = formatIndianNumber(stockByQualityType[type] || 0);
+    });
+
     return transactions.map(tx => ({
       Date: new Date(tx.transaction_date).toLocaleDateString(),
       Time: tx.transaction_time,
@@ -204,6 +257,12 @@ export default function AllTransactionsHistory({ customerId }) {
       : timeFrame;
     const fileName = `${activeView}_transactions_${dateStr}`;
     
+    // Prepare stock information for summary
+    const stockSummary = {};
+    QUALITY_TYPES.forEach(type => {
+      stockSummary[`Current Stock (${type})`] = formatIndianNumber(stockByQualityType[type] || 0);
+    });
+    
     if (type === 'excel') {
       exportToExcel(dataToExport, fileName);
     } else {
@@ -211,11 +270,13 @@ export default function AllTransactionsHistory({ customerId }) {
         ...(activeView === 'purchases' ? {
           'Total Purchases': currentSummary.total_purchases || 0,
           'Total Amount': `₹${formatIndianNumber(currentSummary.total_amount || 0)}`,
-          'Total Quantity': formatIndianNumber(currentSummary.total_quantity || 0)
+          'Total Quantity': formatIndianNumber(currentSummary.total_quantity || 0),
+          ...stockSummary
         } : {
           'Total Payments': currentSummary.total_payments || 0,
           'Total Amount': `₹${formatIndianNumber(currentSummary.total_amount || 0)}`,
-          'Most Common Type': currentSummary.most_common_type || '-'
+          'Most Common Type': currentSummary.most_common_type || '-',
+          ...stockSummary
         })
       };
 
@@ -232,24 +293,24 @@ export default function AllTransactionsHistory({ customerId }) {
   const renderSummaryCards = () => {
     if (activeView === 'purchases') {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Purchases</h3>
             <p className="text-2xl font-semibold">{currentSummary.total_purchases || 0}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <div className="text-center">
-              <p className="text-gray-500">Total Amount</p>
-              <p className="text-2xl font-semibold">₹{formatIndianNumber(currentSummary.total_amount || 0)}</p>
-            </div>
+            <p className="text-2xl font-semibold">₹{formatIndianNumber(currentSummary.total_amount || 0)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Quantity</h3>
-            <div className="text-center">
-              <p className="text-gray-500">Total Quantity</p>
-              <p className="text-2xl font-semibold">{formatIndianNumber(currentSummary.total_quantity || 0)}</p>
-            </div>
+            <p className="text-2xl font-semibold">{formatIndianNumber(currentSummary.total_quantity || 0)}</p>
+          </div>
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h3 className="text-sm text-gray-500">Avg per kg cost</h3>
+            <p className="text-2xl font-semibold">
+              ₹{formatIndianNumber(currentSummary.total_amount / (currentSummary.total_quantity || 1))}
+            </p>
           </div>
         </div>
       );
@@ -262,10 +323,7 @@ export default function AllTransactionsHistory({ customerId }) {
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Total Amount</h3>
-            <div className="text-center">
-              <p className="text-gray-500">Total Amount</p>
-              <p className="text-2xl font-semibold">₹{formatIndianNumber(currentSummary.total_amount || 0)}</p>
-            </div>
+            <p className="text-2xl font-semibold">₹{formatIndianNumber(currentSummary.total_amount || 0)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg">
             <h3 className="text-sm text-gray-500">Most Common Type</h3>
@@ -301,6 +359,23 @@ export default function AllTransactionsHistory({ customerId }) {
           >
             Payments
           </button>
+        </div>
+      </div>
+      
+      {/* Current Stock Summary */}
+      <div className="mb-6">
+        <h3 className="text-lg font-medium mb-3">Current Stock</h3>
+        <div className="overflow-x-auto">
+          <div className="flex gap-4 min-w-max pb-2">
+            {QUALITY_TYPES.map(type => (
+              <div key={type} className="bg-gray-50 p-4 rounded-lg w-64">
+                <h3 className="text-sm text-gray-500">Current Stock ({type})</h3>
+                <p className="text-2xl font-semibold">
+                  {stockLoading ? 'Loading...' : formatIndianNumber(stockByQualityType[type] || 0)}
+                </p>
+              </div>
+            ))}
+          </div>
         </div>
       </div>
       

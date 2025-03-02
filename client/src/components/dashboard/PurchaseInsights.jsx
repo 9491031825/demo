@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import axios from '../../services/axios';
 import { toast } from 'react-toastify';
 import { format } from 'date-fns';
@@ -11,7 +11,7 @@ const TIME_FRAMES = [
   { value: 'all', label: 'All Time' }
 ];
 
-const QUALITY_TYPES = ['Type 1', 'Type 2', 'Type 3'];
+const QUALITY_TYPES = ['Type 1', 'Type 2', 'Type 3', 'Type 4'];
 
 export default function PurchaseInsights({ customerId }) {
   const [timeFrame, setTimeFrame] = useState('today');
@@ -65,6 +65,25 @@ export default function PurchaseInsights({ customerId }) {
         : [...prev, type]
     );
   };
+
+  // Calculate current stock for each quality type
+  const stockByQualityType = useMemo(() => {
+    const stockMap = {};
+    
+    // Initialize stock for each quality type
+    QUALITY_TYPES.forEach(type => {
+      stockMap[type] = 0;
+    });
+    
+    // Sum up quantities by quality type
+    insights.forEach(insight => {
+      if (insight.quality_type && insight.quantity) {
+        stockMap[insight.quality_type] = (stockMap[insight.quality_type] || 0) + insight.quantity;
+      }
+    });
+    
+    return stockMap;
+  }, [insights]);
 
   return (
     <div className="bg-white p-6 rounded-lg shadow mt-6">
@@ -120,11 +139,21 @@ export default function PurchaseInsights({ customerId }) {
             <p className="text-2xl font-semibold">{formatIndianNumber(summary.total_quantity || 0)}</p>
           </div>
           <div className="bg-gray-50 p-4 rounded-lg w-64">
-            <h3 className="text-sm text-gray-500">Average Purchase Amount</h3>
+            <h3 className="text-sm text-gray-500">Avg per kg cost</h3>
             <p className="text-2xl font-semibold">
-              ₹{formatIndianNumber(summary.total_amount / (summary.total_purchases || 1))}
+              ₹{formatIndianNumber(summary.total_amount / (summary.total_quantity || 1))}
             </p>
           </div>
+          
+          {/* Current Stock for each quality type */}
+          {QUALITY_TYPES.map(type => (
+            <div key={type} className="bg-gray-50 p-4 rounded-lg w-64">
+              <h3 className="text-sm text-gray-500">Current Stock ({type})</h3>
+              <p className="text-2xl font-semibold">
+                {formatIndianNumber(stockByQualityType[type] || 0)}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
