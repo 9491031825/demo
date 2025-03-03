@@ -6,3 +6,4 @@ rest_framework_simplejwt==0.0.2
 twilio==9.4.4
 djangorestframework-simplejwt
 google-auth
+pillow

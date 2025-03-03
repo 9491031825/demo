@@ -1161,8 +1161,9 @@ def setup_google_auth(request):
     # Generate secret key if not exists
     secret = user.generate_google_auth_secret()
     
-    # Generate QR code
-    qr_uri = user.get_google_auth_qr()
+    # Generate QR code with custom app name
+    app_name = "MHHB"  # You can change this to your desired app name
+    qr_uri = f"otpauth://totp/{app_name}:{user.username}?secret={secret}&issuer={app_name}"
     img = qrcode.make(qr_uri)
     
     # Convert QR code to base64
