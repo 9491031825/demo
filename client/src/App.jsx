@@ -11,6 +11,7 @@ import CustomerListPage from './components/customers/CustomerListPage';
 import CustomerDetailsPage from './components/customers/CustomerDetailsPage';
 import BulkSettlementPage from './components/dashboard/BulkSettlementPage';
 import SettlementPage from './components/dashboard/SettlementPage';
+import GoogleAuthSetup from './components/auth/GoogleAuthSetup';
 import { disableNumberInputScrolling } from './utils/inputUtils';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginForm />} />
         <Route path="/verify-otp" element={<OTPVerification />} />
+        <Route path="/setup-google-auth" element={<GoogleAuthSetup />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin" element={<AdminRedirect />} />
         <Route path="/transactions/history" element={<AllTransactionsHistory />} />

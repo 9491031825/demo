@@ -7,6 +7,7 @@ from auditlog.models import AuditlogHistoryField
 from auditlog.registry import auditlog
 from django.core.exceptions import ValidationError
 from django.db import transaction
+import pyotp
 
 ADMIN_PHONE = os.getenv('ADMIN_PHONE')
 ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
@@ -19,6 +20,8 @@ class CustomUser(AbstractUser):
     verified_phone = models.BooleanField(default=False)
     allowed_ips = models.JSONField(default=list, blank=True)  # Optional: Store allowed IPs
     email = models.EmailField(default=ADMIN_EMAIL, blank=False, null=False)
+    google_auth_secret = models.CharField(max_length=32, blank=True, null=True)
+    is_admin_2fa_enabled = models.BooleanField(default=False)
 
     # Override groups field with a unique related_name
     groups = models.ManyToManyField(
@@ -37,6 +40,24 @@ class CustomUser(AbstractUser):
         help_text="Specific permissions for this user.",
         verbose_name="user permissions",
     )
+
+    def generate_google_auth_secret(self):
+        if not self.google_auth_secret:
+            self.google_auth_secret = pyotp.random_base32()
+            self.save()
+        return self.google_auth_secret
+
+    def verify_google_auth_code(self, code):
+        if not self.google_auth_secret:
+            return False
+        totp = pyotp.TOTP(self.google_auth_secret)
+        return totp.verify(code)
+
+    def get_google_auth_qr(self):
+        if not self.google_auth_secret:
+            return None
+        totp = pyotp.TOTP(self.google_auth_secret)
+        return totp.provisioning_uri(name=self.email, issuer_name='YourApp')
 
 class Transaction(models.Model):
     TRANSACTION_TYPES = [

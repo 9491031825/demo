@@ -30,6 +30,11 @@ from twilio.twiml.messaging_response import MessagingResponse
 from django.core.exceptions import ValidationError
 from django.db.models.functions import TruncDate
 
+import qrcode
+import io
+import base64
+from django.http import HttpResponse
+
 User = get_user_model()
 otp_storage = {}  # Store OTP temporarily
 
@@ -51,13 +56,39 @@ ADMIN_EMAIL = os.getenv('ADMIN_EMAIL')
 def user_login(request):
     username = request.data.get('username')
     password = request.data.get('password')
+    use_google_auth = request.data.get('use_google_auth', False)
+    google_auth_code = request.data.get('google_auth_code')
 
     user = authenticate(username=username, password=password)
 
     if user is None:
         return Response({"error": "Invalid credentials"}, status=401)
 
-    # Generate a 6-digit OTP
+    # First login step - return success to show auth options
+    if not use_google_auth and not google_auth_code:
+        return Response({"success": True, "message": "Credentials verified"})
+
+    # Handle Google Authenticator verification
+    if use_google_auth and google_auth_code:
+        # Get admin user for Google Auth verification
+        admin_user = User.objects.filter(is_superuser=True, is_admin_2fa_enabled=True).first()
+        if not admin_user:
+            return Response({"error": "Google Authenticator not set up by admin"}, status=400)
+
+        if admin_user.verify_google_auth_code(google_auth_code):
+            # If verification successful, log in user and return tokens
+            login(request, user)
+            refresh = RefreshToken.for_user(user)
+            return Response({
+                "access_token": str(refresh.access_token),
+                "refresh_token": str(refresh),
+                "user": UserSerializer(user).data,
+                "redirect": "/dashboard"
+            })
+        else:
+            return Response({"error": "Invalid Google Authenticator code"}, status=401)
+
+    # For regular OTP flow
     otp = str(random.randint(100000, 999999))
     otp_storage[username] = {
         'otp': otp,
@@ -1114,3 +1145,55 @@ def set_default_bank_account(request, customer_id, account_id):
         
     except Exception as e:
         return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def setup_google_auth(request):
+    """
+    Setup Google Authenticator for admin only
+    """
+    user = request.user
+    
+    # Only allow admin to setup 2FA
+    if not user.is_superuser:
+        return Response({"error": "Only admin can setup Google Authenticator"}, status=403)
+    
+    # Generate secret key if not exists
+    secret = user.generate_google_auth_secret()
+    
+    # Generate QR code
+    qr_uri = user.get_google_auth_qr()
+    img = qrcode.make(qr_uri)
+    
+    # Convert QR code to base64
+    buffer = io.BytesIO()
+    img.save(buffer, format='PNG')
+    qr_base64 = base64.b64encode(buffer.getvalue()).decode()
+    
+    return Response({
+        "secret": secret,
+        "qr_code": qr_base64,
+        "message": "Please scan this QR code with Google Authenticator app"
+    })
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def verify_google_auth_setup(request):
+    """
+    Verify Google Authenticator setup for admin
+    """
+    user = request.user
+    code = request.data.get('code')
+    
+    if not user.is_superuser:
+        return Response({"error": "Only admin can verify Google Authenticator"}, status=403)
+    
+    if not code:
+        return Response({"error": "Verification code is required"}, status=400)
+    
+    if user.verify_google_auth_code(code):
+        user.is_admin_2fa_enabled = True
+        user.save()
+        return Response({"message": "Google Authenticator setup verified successfully"})
+    
+    return Response({"error": "Invalid verification code"}, status=400)

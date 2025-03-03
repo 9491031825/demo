@@ -1,10 +1,11 @@
 import axios from 'axios';
 
 const instance = axios.create({
-  baseURL: process.env.REACT_APP_API_URL || 'http://localhost:8000',
+  baseURL: 'http://localhost:8000',  // your Django backend URL
+  timeout: 5000,
   headers: {
     'Content-Type': 'application/json',
-  },
+  }
 });
 
 let sessionTimeoutCallback = null;
@@ -13,18 +14,13 @@ export const setSessionTimeoutCallback = (callback) => {
   sessionTimeoutCallback = callback;
 };
 
+// Add a request interceptor
 instance.interceptors.request.use(
   (config) => {
-    // Skip adding token for authentication endpoints
-    const isAuthRequest = config.url.includes('/login/') || config.url.includes('/token/refresh/');
-    
-    if (!isAuthRequest) {
-      const token = localStorage.getItem('access_token');
-      if (token) {
-        config.headers.Authorization = `Bearer ${token}`;
-      }
+    const token = localStorage.getItem('access_token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
     }
-    console.log('Request headers before sending:', config.headers);
     return config;
   },
   (error) => {
@@ -32,40 +28,38 @@ instance.interceptors.request.use(
   }
 );
 
+// Add a response interceptor
 instance.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
-    const isAuthRequest = originalRequest.url.includes('/login/') || originalRequest.url.includes('/token/refresh/');
 
-    if (error.response?.status === 401 && !originalRequest._retry && !isAuthRequest) {
+    // If the error is 401 and we have a refresh token
+    if (error.response.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
       const refreshToken = localStorage.getItem('refresh_token');
 
-      try {
-        const response = await instance.post('/user/token/refresh/', {
-          refresh: refreshToken
-        });
+      if (refreshToken) {
+        try {
+          // Try to get a new access token
+          const response = await instance.post('/api/token/refresh/', {
+            refresh: refreshToken
+          });
 
-        if (response.data.access) {
-          localStorage.setItem('access_token', response.data.access);
-          instance.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
-          return instance(originalRequest);
+          if (response.data.access) {
+            localStorage.setItem('access_token', response.data.access);
+            instance.defaults.headers.common['Authorization'] = `Bearer ${response.data.access}`;
+            return instance(originalRequest);
+          }
+        } catch (refreshError) {
+          // If refresh token is invalid, logout user
+          localStorage.removeItem('access_token');
+          localStorage.removeItem('refresh_token');
+          window.location.href = '/login';
         }
-      } catch (refreshError) {
-        // Clear tokens on refresh failure
-        localStorage.clear();
-        delete instance.defaults.headers.common['Authorization'];
-        
-        // First redirect, then show alert
-        window.location.href = '/login';
-        setTimeout(() => {
-          alert('Your session has expired. Please login again.');
-        }, 100);
       }
     }
 
-    console.error('Response error:', error.response?.status, error.response?.data);
     return Promise.reject(error);
   }
 );

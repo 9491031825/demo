@@ -11,6 +11,7 @@ export default function OTPVerification() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
+  const [isGoogleAuth, setIsGoogleAuth] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -28,7 +29,7 @@ export default function OTPVerification() {
 
     // Cleanup interval
     return () => clearInterval(interval);
-  }, [resendTimer]); // This will re-run when resendTimer is reset
+  }, [resendTimer]);
 
   const handleResendOTP = async () => {
     if (!canResend) return;
@@ -69,13 +70,28 @@ export default function OTPVerification() {
 
     try {
       const username = localStorage.getItem('username');
-      const response = await axios.post('/user/login/otpverification/', {
-        username,
-        otp: otp.toString()
-      });
+      const password = localStorage.getItem('temp_password');
+
+      let response;
+      
+      if (isGoogleAuth) {
+        // Try Google Authenticator verification
+        response = await axios.post('/user/login/', {
+          username,
+          password,
+          use_google_auth: true,
+          google_auth_code: otp
+        });
+      } else {
+        // Try regular OTP verification
+        response = await axios.post('/user/login/otpverification/', {
+          username,
+          otp: otp.toString()
+        });
+      }
       
       if (response.data.access_token) {
-        localStorage.removeItem('temp_password'); // Clean up stored password
+        localStorage.removeItem('temp_password');
         localStorage.setItem('access_token', response.data.access_token);
         localStorage.setItem('refresh_token', response.data.refresh_token);
         
@@ -92,8 +108,8 @@ export default function OTPVerification() {
         }
       }
     } catch (err) {
-      console.error('OTP Verification Error:', err);
-      const errorMessage = err.response?.data?.error || 'Invalid OTP';
+      console.error('Verification Error:', err);
+      const errorMessage = err.response?.data?.error || 'Invalid code';
       setError(errorMessage);
       
       if (errorMessage.includes('expired')) {
@@ -119,10 +135,13 @@ export default function OTPVerification() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Enter OTP
+            Verification Required
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Please enter the OTP sent to admin
+            {isGoogleAuth ? 
+              'Enter your Google Authenticator code' : 
+              'Please enter the OTP sent to admin'
+            }
           </p>
           {error && (
             <p className={`mt-2 text-center text-sm ${error.includes('sent') ? 'text-green-600' : 'text-red-600'}`}>
@@ -135,7 +154,7 @@ export default function OTPVerification() {
             type="text"
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
-            placeholder="Enter OTP"
+            placeholder={isGoogleAuth ? "Enter Google Authenticator Code" : "Enter OTP"}
             className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
             required
           />
@@ -147,23 +166,39 @@ export default function OTPVerification() {
                 isLoading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {isLoading ? 'Verifying...' : 'Verify OTP'}
+              {isLoading ? 'Verifying...' : 'Verify Code'}
             </button>
+
+            {/* Toggle between OTP and Google Auth */}
             <button
               type="button"
-              onClick={handleResendOTP}
-              disabled={!canResend || resendLoading}
-              className={`text-sm text-indigo-600 hover:text-indigo-500 focus:outline-none ${
-                !canResend || resendLoading ? 'opacity-50 cursor-not-allowed' : ''
-              }`}
+              onClick={() => setIsGoogleAuth(!isGoogleAuth)}
+              className="text-sm text-indigo-600 hover:text-indigo-500 focus:outline-none"
             >
-              {resendLoading 
-                ? 'Sending...' 
-                : resendTimer > 0 
-                  ? `Resend OTP in ${resendTimer}s`
-                  : 'Resend OTP'
+              {isGoogleAuth ? 
+                'Switch to OTP verification' : 
+                'Use Google Authenticator instead'
               }
             </button>
+
+            {/* Only show resend option for OTP */}
+            {!isGoogleAuth && (
+              <button
+                type="button"
+                onClick={handleResendOTP}
+                disabled={!canResend || resendLoading}
+                className={`text-sm text-indigo-600 hover:text-indigo-500 focus:outline-none ${
+                  !canResend || resendLoading ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
+              >
+                {resendLoading 
+                  ? 'Sending...' 
+                  : resendTimer > 0 
+                    ? `Resend OTP in ${resendTimer}s`
+                    : 'Resend OTP'
+                }
+              </button>
+            )}
           </div>
         </form>
       </div>

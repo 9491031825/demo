@@ -11,6 +11,10 @@ from .views import (
     get_payment_insights,
     get_pending_transactions,
     set_default_bank_account,
+    setup_google_auth,
+    verify_google_auth_setup,
+    send_email_otp,
+    verify_email_otp,
 )
 
 urlpatterns = [
@@ -36,4 +40,11 @@ urlpatterns = [
     path('api/transactions/payment/bulk/', create_bulk_payment, name='create_bulk_payment'),
     path('api/transactions/payment-insights', get_payment_insights, name='get_payment_insights'),
     path('api/customers/<int:customer_id>/pending-transactions/', get_pending_transactions),
+    path('login/', user_login, name='user_login'),
+    path('verify/', verify_user, name='verify_user'),
+    path('home/', home_page, name='home_page'),
+    path('email/send-otp/', send_email_otp, name='send_email_otp'),
+    path('email/verify-otp/', verify_email_otp, name='verify_email_otp'),
+    path('setup-google-auth/', setup_google_auth, name='setup_google_auth'),
+    path('verify-google-auth-setup/', verify_google_auth_setup, name='verify_google_auth_setup'),
 ]
