@@ -4,8 +4,8 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken
-from .serializers import UserSerializer, CustomerSerializer, TransactionSerializer, BankAccountSerializer
-from .models import Transaction, Customer, BankAccount
+from .serializers import UserSerializer, CustomerSerializer, TransactionSerializer, BankAccountSerializer, InventorySerializer, InventoryExpenseSerializer
+from .models import Transaction, Customer, BankAccount, Inventory, InventoryExpense
 from django.core.mail import send_mail
 from django.db.models import Q, Sum, Count, Avg
 from django.utils import timezone
@@ -437,6 +437,7 @@ def login_user(request):
 @permission_classes([IsAuthenticated])
 def create_stock_transaction(request):
     try:
+        from decimal import Decimal
         transactions_data = request.data
         
         # Print user information at the start
@@ -524,6 +525,31 @@ def create_stock_transaction(request):
                     print(f"Transaction saved with created_by: {transaction_obj.created_by}")
                     print(f"Full transaction object after save: {transaction_obj.__dict__}")
                     saved_transactions.append(serializer.data)
+                    
+                    # Update inventory table
+                    quality_type = data.get('quality_type')
+                    decimal_quantity = Decimal(str(quantity))
+                    decimal_total = Decimal(str(total))
+                    
+                    # Get or create inventory item
+                    inventory_item, created = Inventory.objects.get_or_create(
+                        customer=customer,
+                        quality_type=quality_type,
+                        defaults={
+                            'quantity': Decimal('0'),
+                            'total_cost': Decimal('0'),
+                            'created_by': request.user.username
+                        }
+                    )
+                    
+                    # Update inventory quantity and total cost
+                    inventory_item.quantity += decimal_quantity
+                    inventory_item.total_cost += decimal_total
+                    
+                    # Save inventory item (avg_cost will be calculated in the save method)
+                    inventory_item.save()
+                    
+                    print(f"Inventory updated: {inventory_item.customer.name} - {inventory_item.quality_type} - Quantity: {inventory_item.quantity} - Total Cost: {inventory_item.total_cost} - Avg Cost: {inventory_item.avg_cost}")
                 else:
                     print(f"Serializer errors: {serializer.errors}")
                     raise ValidationError(f"Validation error for transaction: {serializer.errors}")
@@ -1198,3 +1224,225 @@ def verify_google_auth_setup(request):
         return Response({"message": "Google Authenticator setup verified successfully"})
     
     return Response({"error": "Invalid verification code"}, status=400)
+
+# Inventory Management Endpoints
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_inventory_overview(request):
+    """
+    Get an overview of all inventory items across all customers
+    """
+    try:
+        # Get all inventory items
+        inventory_items = Inventory.objects.all()
+        
+        # Serialize the data
+        serializer = InventorySerializer(inventory_items, many=True)
+        
+        # Calculate totals
+        total_quantity = sum(item.quantity for item in inventory_items)
+        total_cost = sum(item.total_cost for item in inventory_items)
+        
+        # Group by quality type
+        quality_summary = {}
+        for item in inventory_items:
+            if item.quality_type not in quality_summary:
+                quality_summary[item.quality_type] = {
+                    'total_quantity': 0,
+                    'total_cost': 0,
+                    'avg_cost': 0
+                }
+            quality_summary[item.quality_type]['total_quantity'] += item.quantity
+            quality_summary[item.quality_type]['total_cost'] += item.total_cost
+        
+        # Calculate average costs for each quality type
+        for quality_type, data in quality_summary.items():
+            if data['total_quantity'] > 0:
+                data['avg_cost'] = data['total_cost'] / data['total_quantity']
+        
+        return Response({
+            'inventory_items': serializer.data,
+            'summary': {
+                'total_quantity': total_quantity,
+                'total_cost': total_cost,
+                'quality_summary': quality_summary
+            }
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_customer_inventory(request, customer_id):
+    """
+    Get inventory items for a specific customer
+    """
+    try:
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        # Get all inventory items for this customer
+        inventory_items = Inventory.objects.filter(customer=customer)
+        
+        # Serialize the data
+        serializer = InventorySerializer(inventory_items, many=True)
+        
+        # Get customer details
+        customer_serializer = CustomerSerializer(customer)
+        
+        return Response({
+            'customer': customer_serializer.data,
+            'inventory': serializer.data
+        })
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def add_inventory_expense(request, customer_id):
+    """
+    Add weight loss and expenditure to a customer's inventory item
+    """
+    try:
+        from decimal import Decimal
+        
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        # Get data from request and print for debugging
+        print(f"Request data: {request.data}")
+        
+        quality_type = request.data.get('quality_type')
+        
+        # Safely convert weight_loss and expenditure to Decimal
+        try:
+            weight_loss = Decimal(str(request.data.get('weight_loss', 0)))
+        except (ValueError, TypeError):
+            weight_loss = Decimal('0')
+            
+        try:
+            expenditure = Decimal(str(request.data.get('expenditure', 0)))
+        except (ValueError, TypeError):
+            expenditure = Decimal('0')
+            
+        notes = request.data.get('notes', '')
+        
+        print(f"Parsed data - quality_type: {quality_type}, weight_loss: {weight_loss}, expenditure: {expenditure}")
+        
+        # Validate input
+        if not quality_type:
+            return Response({'error': 'Quality type is required'}, status=400)
+        
+        if weight_loss <= Decimal('0') and expenditure <= Decimal('0'):
+            return Response({'error': 'Either weight loss or expenditure must be greater than 0'}, status=400)
+        
+        # Get or create inventory item
+        with transaction.atomic():
+            inventory_item, created = Inventory.objects.get_or_create(
+                customer=customer,
+                quality_type=quality_type,
+                defaults={
+                    'quantity': Decimal('0'),
+                    'total_cost': Decimal('0'),
+                    'avg_cost': Decimal('0'),
+                    'created_by': request.user.username
+                }
+            )
+            
+            print(f"Inventory item: {inventory_item.id}, quantity: {inventory_item.quantity}, created: {created}")
+            
+            # Store old values before making changes
+            old_quantity = inventory_item.quantity
+            old_avg_cost = inventory_item.avg_cost
+            old_total_cost = inventory_item.total_cost
+            
+            # If weight loss is being applied, check inventory quantity
+            if weight_loss > Decimal('0'):
+                # If no inventory exists or quantity is 0, we can't apply weight loss
+                if inventory_item.quantity <= Decimal('0'):
+                    return Response({
+                        'error': 'No inventory available for this quality type'
+                    }, status=400)
+                
+                # Calculate new quantity after weight loss
+                new_quantity = inventory_item.quantity - weight_loss
+                
+                # Ensure we don't have negative quantity
+                if new_quantity < Decimal('0'):
+                    return Response({
+                        'error': 'Weight loss cannot exceed available quantity'
+                    }, status=400)
+                    
+                # Update quantity
+                inventory_item.quantity = new_quantity
+            
+            # If expenditure is being applied, update total cost
+            if expenditure > Decimal('0'):
+                inventory_item.total_cost += expenditure
+            
+            # Save inventory item to recalculate avg_cost
+            inventory_item.save()
+            
+            # Get new values after changes
+            new_quantity = inventory_item.quantity
+            new_avg_cost = inventory_item.avg_cost
+            
+            # Create expense record with old and new values
+            expense = InventoryExpense.objects.create(
+                inventory=inventory_item,
+                weight_loss=weight_loss,
+                expenditure=expenditure,
+                old_quantity=old_quantity,
+                new_quantity=new_quantity,
+                old_avg_cost=old_avg_cost,
+                new_avg_cost=new_avg_cost,
+                notes=notes,
+                created_by=request.user.username
+            )
+            
+            print(f"Expense created: {expense.id}")
+            
+            # Prepare response data
+            expense_serializer = InventoryExpenseSerializer(expense)
+            inventory_serializer = InventorySerializer(inventory_item)
+            
+            return Response({
+                'expense': expense_serializer.data,
+                'inventory': inventory_serializer.data,
+                'changes': {
+                    'old_quantity': float(old_quantity),
+                    'new_quantity': float(new_quantity),
+                    'old_avg_cost': float(old_avg_cost),
+                    'new_avg_cost': float(new_avg_cost),
+                    'weight_loss': float(weight_loss),
+                    'expenditure': float(expenditure)
+                }
+            }, status=201)
+    except Exception as e:
+        import traceback
+        print(f"Error in add_inventory_expense: {str(e)}")
+        print(traceback.format_exc())
+        return Response({'error': str(e)}, status=400)
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def get_inventory_expenses(request, customer_id):
+    """
+    Get expense history for a customer's inventory
+    """
+    try:
+        customer = get_object_or_404(Customer, id=customer_id)
+        
+        # Get all inventory items for this customer
+        inventory_items = Inventory.objects.filter(customer=customer)
+        
+        # Get all expenses for these inventory items
+        expenses = InventoryExpense.objects.filter(
+            inventory__in=inventory_items
+        ).order_by('-created_at')
+        
+        # Serialize the data
+        serializer = InventoryExpenseSerializer(expenses, many=True)
+        
+        return Response(serializer.data)
+    except Exception as e:
+        return Response({'error': str(e)}, status=400)

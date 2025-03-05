@@ -226,3 +226,58 @@ export const transactionAPI = {
     }
   },
 };
+
+// New inventory management API
+export const inventoryAPI = {
+  getOverview: async () => {
+    try {
+      const response = await axios.get('/api/inventory/');
+      return response.data;
+    } catch (error) {
+      console.error('Get inventory overview error:', error);
+      throw error.response?.data || error;
+    }
+  },
+  
+  getCustomerInventory: async (customerId) => {
+    try {
+      const response = await axios.get(`/api/customers/${customerId}/inventory/`);
+      return response.data;
+    } catch (error) {
+      console.error('Get customer inventory error:', error);
+      throw error.response?.data || error;
+    }
+  },
+  
+  getExpenses: async (customerId) => {
+    try {
+      const response = await axios.get(`/api/customers/${customerId}/inventory/expenses/`);
+      return response.data;
+    } catch (error) {
+      console.error('Get inventory expenses error:', error);
+      throw error.response?.data || error;
+    }
+  },
+  
+  addExpense: async (customerId, expenseData) => {
+    try {
+      console.log('API call - Adding expense:', expenseData);
+      
+      // Ensure numeric values are properly formatted
+      const formattedData = {
+        ...expenseData,
+        weight_loss: parseFloat(expenseData.weight_loss) || 0,
+        expenditure: parseFloat(expenseData.expenditure) || 0
+      };
+      
+      const response = await axios.post(
+        `/api/customers/${customerId}/inventory/add-expense/`, 
+        formattedData
+      );
+      return response.data;
+    } catch (error) {
+      console.error('Add inventory expense error:', error);
+      throw error;
+    }
+  }
+};

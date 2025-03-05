@@ -237,3 +237,54 @@ auditlog.register(CustomUser)
 auditlog.register(Transaction)
 auditlog.register(Customer)
 auditlog.register(BankAccount)
+
+class Inventory(models.Model):
+    """
+    Model to track inventory stock for sales/inventory management.
+    This is separate from the Transaction model to isolate inventory management functionality.
+    """
+    customer = models.ForeignKey(Customer, on_delete=models.CASCADE, related_name='inventory')
+    quality_type = models.CharField(max_length=50)
+    quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    total_cost = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    avg_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+    created_by = models.CharField(max_length=150, blank=True, null=True)
+
+    class Meta:
+        unique_together = ('customer', 'quality_type')
+        verbose_name_plural = 'Inventories'
+
+    def save(self, *args, **kwargs):
+        # Calculate average cost if quantity is greater than 0
+        if self.quantity > 0:
+            self.avg_cost = self.total_cost / self.quantity
+        else:
+            self.avg_cost = 0
+        super().save(*args, **kwargs)
+
+    def __str__(self):
+        return f"{self.customer.name} - {self.quality_type} - {self.quantity}"
+
+class InventoryExpense(models.Model):
+    """
+    Model to track expenses and weight loss for inventory items.
+    """
+    inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE, related_name='expenses')
+    weight_loss = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    expenditure = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    old_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    new_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    old_avg_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    new_avg_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    notes = models.TextField(blank=True, null=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    created_by = models.CharField(max_length=150, blank=True, null=True)
+
+    def __str__(self):
+        return f"{self.inventory.customer.name} - {self.inventory.quality_type} - Expense"
+
+# Register new models with auditlog
+auditlog.register(Inventory)
+auditlog.register(InventoryExpense)

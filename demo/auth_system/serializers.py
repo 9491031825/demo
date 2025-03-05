@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
-from .models import Customer, Transaction, BankAccount
+from .models import Customer, Transaction, BankAccount, Inventory, InventoryExpense
 from django.utils import timezone
 
 User = get_user_model()
@@ -123,4 +123,57 @@ class TransactionSerializer(serializers.ModelSerializer):
         if 'customer_id' in self.context:
             validated_data['customer_id'] = self.context['customer_id']
         return super().create(validated_data)
+
+class InventorySerializer(serializers.ModelSerializer):
+    customer_name = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = Inventory
+        fields = [
+            'id',
+            'customer',
+            'customer_name',
+            'quality_type',
+            'quantity',
+            'total_cost',
+            'avg_cost',
+            'created_at',
+            'updated_at',
+            'created_by'
+        ]
+        read_only_fields = ['id', 'created_at', 'updated_at', 'avg_cost', 'customer_name']
+    
+    def get_customer_name(self, obj):
+        return obj.customer.name if obj.customer else None
+
+class InventoryExpenseSerializer(serializers.ModelSerializer):
+    inventory_details = serializers.SerializerMethodField()
+    
+    class Meta:
+        model = InventoryExpense
+        fields = [
+            'id',
+            'inventory',
+            'inventory_details',
+            'weight_loss',
+            'expenditure',
+            'old_quantity',
+            'new_quantity',
+            'old_avg_cost',
+            'new_avg_cost',
+            'notes',
+            'created_at',
+            'created_by'
+        ]
+        read_only_fields = ['id', 'created_at', 'inventory_details']
+    
+    def get_inventory_details(self, obj):
+        if not obj.inventory:
+            return None
+        return {
+            'customer_name': obj.inventory.customer.name,
+            'quality_type': obj.inventory.quality_type,
+            'quantity': obj.inventory.quantity,
+            'avg_cost': obj.inventory.avg_cost
+        }
 

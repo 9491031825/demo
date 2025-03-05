@@ -15,6 +15,10 @@ from .views import (
     verify_google_auth_setup,
     send_email_otp,
     verify_email_otp,
+    get_inventory_overview,
+    get_customer_inventory,
+    add_inventory_expense,
+    get_inventory_expenses,
 )
 
 urlpatterns = [
@@ -47,4 +51,8 @@ urlpatterns = [
     path('email/verify-otp/', verify_email_otp, name='verify_email_otp'),
     path('setup-google-auth/', setup_google_auth, name='setup_google_auth'),
     path('verify-google-auth-setup/', verify_google_auth_setup, name='verify_google_auth_setup'),
+    path('api/inventory/', get_inventory_overview, name='get_inventory_overview'),
+    path('api/customers/<int:customer_id>/inventory/', get_customer_inventory, name='get_customer_inventory'),
+    path('api/customers/<int:customer_id>/inventory/expenses/', get_inventory_expenses, name='get_inventory_expenses'),
+    path('api/customers/<int:customer_id>/inventory/add-expense/', add_inventory_expense, name='add_inventory_expense'),
 ]

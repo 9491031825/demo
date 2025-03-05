@@ -6,8 +6,6 @@ import CustomerList from './CustomerList';
 import Modal from '../common/Modal';
 import axios from '../../services/axios';
 import AddBankAccountForm from './AddBankAccountForm';
-import PurchaseInsights from './PurchaseInsights';
-import PaymentInsights from './PaymentInsights';
 
 export default function Dashboard() {
   const navigate = useNavigate();
@@ -51,7 +49,10 @@ export default function Dashboard() {
     { label: 'Customer Database', path: '/customers', icon: '📋' },
     { label: 'Add New Customer', onClick: () => setIsModalOpen(true), icon: '➕' },
     { label: 'View All Transactions', path: '/transactions/history', icon: '📊' },
+    { label: 'Inventory Management', path: '/inventory', icon: '📦' },
     { label: 'Bulk Settlement', path: '/bulk-settlement', icon: '💰' },
+    { label: 'Purchase Insights', path: '/insights/purchases', icon: '📈' },
+    { label: 'Payment Insights', path: '/insights/payments', icon: '💵' },
     { label: 'Logout', onClick: handleLogout, icon: '🚪' },
   ];
 
@@ -126,13 +127,47 @@ export default function Dashboard() {
                 >
                   Add Bank Account
                 </button>
+                <button
+                  onClick={() => navigate(`/insights/purchases/${customer.id}`)}
+                  className="bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 transition-colors text-sm"
+                >
+                  Purchase Insights
+                </button>
+                <button
+                  onClick={() => navigate(`/insights/payments/${customer.id}`)}
+                  className="bg-pink-600 text-white px-3 py-1 rounded-md hover:bg-pink-700 transition-colors text-sm"
+                >
+                  Payment Insights
+                </button>
               </div>
             )}
           />
         </div>
 
-        <PurchaseInsights />
-        <PaymentInsights />
+        {/* Add quick access cards for insights */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-8">
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Purchase Insights</h2>
+            <p className="text-gray-600 mb-4">View detailed insights about purchases, including quality types, quantities, and amounts.</p>
+            <button
+              onClick={() => navigate('/insights/purchases')}
+              className="bg-indigo-600 text-white px-4 py-2 rounded-md hover:bg-indigo-700 transition-colors"
+            >
+              View Purchase Insights
+            </button>
+          </div>
+          
+          <div className="bg-white p-6 rounded-lg shadow">
+            <h2 className="text-xl font-semibold mb-4">Payment Insights</h2>
+            <p className="text-gray-600 mb-4">View detailed insights about payments, including payment types, amounts, and trends.</p>
+            <button
+              onClick={() => navigate('/insights/payments')}
+              className="bg-pink-600 text-white px-4 py-2 rounded-md hover:bg-pink-700 transition-colors"
+            >
+              View Payment Insights
+            </button>
+          </div>
+        </div>
 
         <Modal
           isOpen={isModalOpen}

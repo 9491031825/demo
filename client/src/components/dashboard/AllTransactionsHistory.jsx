@@ -6,6 +6,7 @@ import { exportToExcel, exportToPDF } from '../../utils/exportUtils';
 import "react-datepicker/dist/react-datepicker.css";
 import { format } from 'date-fns';
 import { formatIndianNumber } from '../../utils/numberUtils';
+import { useNavigate } from 'react-router-dom';
 
 const TIME_FRAMES = [
   { value: 'today', label: "Today's Data" },
@@ -18,6 +19,7 @@ const QUALITY_TYPES = ['Type 1', 'Type 2', 'Type 3', 'Type 4'];
 const PAYMENT_TYPES = ['cash', 'bank', 'upi'];
 
 export default function AllTransactionsHistory({ customerId }) {
+  const navigate = useNavigate();
   const [timeFrame, setTimeFrame] = useState('today');
   const [selectedQualityTypes, setSelectedQualityTypes] = useState([]);
   const [selectedPaymentTypes, setSelectedPaymentTypes] = useState([]);
@@ -30,6 +32,10 @@ export default function AllTransactionsHistory({ customerId }) {
   const [endDate, setEndDate] = useState(null);
   const [stockData, setStockData] = useState({});
   const [stockLoading, setStockLoading] = useState(false);
+
+  const handleBackToDashboard = () => {
+    navigate('/dashboard');
+  };
 
   // Fetch current stock data for all quality types
   useEffect(() => {
@@ -337,7 +343,18 @@ export default function AllTransactionsHistory({ customerId }) {
   return (
     <div className="bg-white p-6 rounded-lg shadow mt-6">
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-xl font-semibold">Transaction History</h2>
+        <div className="flex items-center space-x-4">
+          <button
+            onClick={handleBackToDashboard}
+            className="flex items-center px-4 py-2 bg-gray-200 text-gray-700 rounded-md hover:bg-gray-300"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M9.707 16.707a1 1 0 01-1.414 0l-6-6a1 1 0 010-1.414l6-6a1 1 0 011.414 1.414L5.414 9H17a1 1 0 110 2H5.414l4.293 4.293a1 1 0 010 1.414z" clipRule="evenodd" />
+            </svg>
+            Back to Dashboard
+          </button>
+          <h2 className="text-xl font-semibold">Transaction History</h2>
+        </div>
         <div className="space-x-4">
           <button
             onClick={() => setActiveView('purchases')}
