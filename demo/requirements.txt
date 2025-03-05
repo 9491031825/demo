@@ -7,3 +7,5 @@ twilio==9.4.4
 djangorestframework-simplejwt
 google-auth
 pillow
+pyotp
+qrcode[pil]

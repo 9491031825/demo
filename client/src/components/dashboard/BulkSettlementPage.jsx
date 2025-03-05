@@ -12,7 +12,14 @@ export default function BulkSettlementPage() {
       toast.error('Please select at least one customer');
       return;
     }
-    navigate('/settlement', { state: { selectedCustomers: selectedCustomers } });
+    
+    // Display success message
+    toast.success('Settlement successful! Redirecting to dashboard...');
+
+    // Redirect to dashboard after a delay
+    setTimeout(() => {
+      navigate('/settlement', { state: { selectedCustomers: selectedCustomers } });
+    }, 2000); // Adjust the delay as needed (2000ms = 2 seconds)
   };
 
   return (

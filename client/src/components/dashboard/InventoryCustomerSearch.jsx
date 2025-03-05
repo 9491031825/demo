@@ -23,14 +23,11 @@ export default function InventoryCustomerSearch({ selectedCustomers, setSelected
   }, [searchQuery]);
 
   const handleCheckboxChange = (customer) => {
-    setSelectedCustomers(prev => {
-      const isSelected = prev.some(c => c.id === customer.id);
-      if (isSelected) {
-        return prev.filter(c => c.id !== customer.id);
-      } else {
-        return [...prev, customer];
-      }
-    });
+    if (selectedCustomers.includes(customer)) {
+      setSelectedCustomers(selectedCustomers.filter(c => c !== customer));
+    } else {
+      setSelectedCustomers([...selectedCustomers, customer]);
+    }
   };
 
   // Calculate total inventory for a customer

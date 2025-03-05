@@ -127,18 +127,6 @@ export default function Dashboard() {
                 >
                   Add Bank Account
                 </button>
-                <button
-                  onClick={() => navigate(`/insights/purchases/${customer.id}`)}
-                  className="bg-indigo-600 text-white px-3 py-1 rounded-md hover:bg-indigo-700 transition-colors text-sm"
-                >
-                  Purchase Insights
-                </button>
-                <button
-                  onClick={() => navigate(`/insights/payments/${customer.id}`)}
-                  className="bg-pink-600 text-white px-3 py-1 rounded-md hover:bg-pink-700 transition-colors text-sm"
-                >
-                  Payment Insights
-                </button>
               </div>
             )}
           />

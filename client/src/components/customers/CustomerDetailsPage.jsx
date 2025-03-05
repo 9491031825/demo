@@ -24,6 +24,7 @@ export default function CustomerDetailsPage() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [pageSize] = useState(25);
+  const [activeTab, setActiveTab] = useState('all');
 
   useEffect(() => {
     const fetchCustomerData = async () => {
@@ -522,6 +523,42 @@ export default function CustomerDetailsPage() {
           </div>
         </div>
 
+        {/* Tabs for separating payments and purchases */}
+        <div className="border-b border-gray-200">
+          <nav className="flex -mb-px">
+            <button
+              onClick={() => setActiveTab('all')}
+              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
+                activeTab === 'all'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              All Transactions
+            </button>
+            <button
+              onClick={() => setActiveTab('purchases')}
+              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
+                activeTab === 'purchases'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Stock Purchases
+            </button>
+            <button
+              onClick={() => setActiveTab('payments')}
+              className={`py-4 px-6 text-center border-b-2 font-medium text-sm ${
+                activeTab === 'payments'
+                  ? 'border-blue-500 text-blue-600'
+                  : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+              }`}
+            >
+              Payments
+            </button>
+          </nav>
+        </div>
+
         <div className="overflow-x-auto">
           <table className="min-w-full table-auto">
             <thead className="bg-gray-50">
@@ -536,9 +573,18 @@ export default function CustomerDetailsPage() {
               </tr>
             </thead>
             <tbody>
-              {(filteredTransactions !== null ? filteredTransactions : transactions).map((transaction) => (
+              {(filteredTransactions !== null ? filteredTransactions : transactions)
+                .filter(transaction => {
+                  if (activeTab === 'all') return true;
+                  if (activeTab === 'purchases') return transaction.transaction_type === 'stock';
+                  if (activeTab === 'payments') return transaction.transaction_type === 'payment';
+                  return true;
+                })
+                .map((transaction) => (
                 <React.Fragment key={transaction.id}>
-                  <tr className="border-b hover:bg-gray-50">
+                  <tr className={`border-b hover:bg-gray-50 ${
+                    transaction.transaction_type === 'payment' ? 'bg-green-50' : ''
+                  }`}>
                     <td className="px-6 py-4">
                       {formatDate(transaction.transaction_date)}
                       <br />
@@ -597,7 +643,24 @@ export default function CustomerDetailsPage() {
                       {formatCurrency(transaction.total)}
                     </td>
                     <td className="px-6 py-4">
-                      {formatCurrency(parseFloat(transaction.balance) || 0)}
+                      {transaction.transaction_type === 'payment' ? (
+                        <div>
+                          <p className="font-semibold text-green-600">
+                            {formatCurrency(parseFloat(transaction.total) || 0)}
+                          </p>
+                          <p className="text-sm text-gray-600">
+                            Remaining: {formatCurrency(parseFloat(transaction.running_balance) || 0)}
+                          </p>
+                        </div>
+                      ) : (
+                        <div>
+                          <p className={`font-semibold ${
+                            parseFloat(transaction.balance) > 0 ? 'text-red-600' : 'text-green-600'
+                          }`}>
+                            {formatCurrency(parseFloat(transaction.balance) || 0)}
+                          </p>
+                        </div>
+                      )}
                     </td>
                     <td className="px-6 py-4 text-sm text-gray-600">
                       {transaction.notes || '-'}
@@ -645,6 +708,16 @@ export default function CustomerDetailsPage() {
           ) : filteredTransactions !== null && filteredTransactions.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
               No transactions match the selected date range
+            </div>
+          ) : (activeTab === 'purchases' && 
+              (filteredTransactions !== null ? filteredTransactions : transactions).filter(t => t.transaction_type === 'stock').length === 0) ? (
+            <div className="text-center py-8 text-gray-500">
+              No stock purchases found
+            </div>
+          ) : (activeTab === 'payments' && 
+              (filteredTransactions !== null ? filteredTransactions : transactions).filter(t => t.transaction_type === 'payment').length === 0) ? (
+            <div className="text-center py-8 text-gray-500">
+              No payments found
             </div>
           ) : null}
         </div>

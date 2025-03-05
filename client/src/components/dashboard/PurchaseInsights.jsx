@@ -182,7 +182,7 @@ export default function PurchaseInsights({ customerId }) {
           {/* Current Stock for each quality type */}
           {QUALITY_TYPES.map(type => (
             <div key={type} className="bg-gray-50 p-4 rounded-lg w-64">
-              <h3 className="text-sm text-gray-500">Current Stock ({type})</h3>
+              <h3 className="text-sm text-gray-500">Total Stock ({type})</h3>
               <p className="text-2xl font-semibold">
                 {formatIndianNumber(stockByQualityType[type] || 0)}
               </p>
