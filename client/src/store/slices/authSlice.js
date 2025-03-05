@@ -15,9 +15,9 @@ export const login = createAsyncThunk(
 
 export const verifyOTP = createAsyncThunk(
   'auth/verifyOTP',
-  async ({ phone_number, otp }, { rejectWithValue }) => {
+  async ({ username, otp }, { rejectWithValue }) => {
     try {
-      const response = await axios.post('user/login/otpverification/', { phone_number, otp });
+      const response = await axios.post('/user/login/otpverification/', { username, otp });
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response.data);

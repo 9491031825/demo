@@ -1,5 +1,28 @@
 import axios from './axios';
 
+// Authentication API
+export const authAPI = {
+  login: async (credentials) => {
+    try {
+      const response = await axios.post('/user/login/', credentials);
+      return response.data;
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error.response?.data || error;
+    }
+  },
+  
+  verifyOTP: async (verificationData) => {
+    try {
+      const response = await axios.post('/user/login/otpverification/', verificationData);
+      return response.data;
+    } catch (error) {
+      console.error('OTP verification error:', error);
+      throw error.response?.data || error;
+    }
+  }
+};
+
 export const customerAPI = {
   search: async (query) => {
     try {

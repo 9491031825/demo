@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
 import { verifyOTP } from '../../store/slices/authSlice';
 import axios from '../../services/axios';
+import { authAPI } from '../../services/api';
 
 export default function OTPVerification() {
   const [otp, setOtp] = useState('');
@@ -11,7 +12,6 @@ export default function OTPVerification() {
   const [resendLoading, setResendLoading] = useState(false);
   const [resendTimer, setResendTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
-  const [isGoogleAuth, setIsGoogleAuth] = useState(false);
   const navigate = useNavigate();
   const dispatch = useDispatch();
 
@@ -41,7 +41,7 @@ export default function OTPVerification() {
       const username = localStorage.getItem('username');
       const password = localStorage.getItem('temp_password');
       
-      const response = await axios.post('/user/login/', {
+      const response = await authAPI.login({
         username,
         password,
         resend: true
@@ -70,25 +70,30 @@ export default function OTPVerification() {
 
     try {
       const username = localStorage.getItem('username');
-      const password = localStorage.getItem('temp_password');
-
-      let response;
       
-      if (isGoogleAuth) {
-        // Try Google Authenticator verification
-        response = await axios.post('/user/login/', {
-          username,
-          password,
-          use_google_auth: true,
-          google_auth_code: otp
-        });
-      } else {
-        // Try regular OTP verification
-        response = await axios.post('/user/login/otpverification/', {
-          username,
-          otp: otp.toString()
-        });
+      console.log('Verifying OTP with:', {
+        username,
+        otp: otp.toString()
+      });
+      
+      if (!username) {
+        setError('Username not found. Please login again.');
+        setTimeout(() => navigate('/login'), 2000);
+        return;
       }
+      
+      // Create the verification data
+      const verificationData = {
+        username: username,
+        otp: otp.toString()
+      };
+      
+      console.log('Sending verification data:', verificationData);
+      
+      // Try regular OTP verification using direct axios call
+      const response = await axios.post('/user/login/otpverification/', verificationData);
+      
+      console.log('OTP verification response:', response.data);
       
       if (response.data.access_token) {
         localStorage.removeItem('temp_password');
@@ -135,13 +140,10 @@ export default function OTPVerification() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Verification Required
+            OTP Verification
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            {isGoogleAuth ? 
-              'Enter your Google Authenticator code' : 
-              'Please enter the OTP sent to admin'
-            }
+            Please enter the OTP sent to admin
           </p>
           {error && (
             <p className={`mt-2 text-center text-sm ${error.includes('sent') ? 'text-green-600' : 'text-red-600'}`}>
@@ -154,7 +156,7 @@ export default function OTPVerification() {
             type="text"
             value={otp}
             onChange={(e) => setOtp(e.target.value)}
-            placeholder={isGoogleAuth ? "Enter Google Authenticator Code" : "Enter OTP"}
+            placeholder="Enter OTP"
             className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-t-md focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm"
             required
           />
@@ -166,39 +168,34 @@ export default function OTPVerification() {
                 isLoading ? 'opacity-50 cursor-not-allowed' : ''
               }`}
             >
-              {isLoading ? 'Verifying...' : 'Verify Code'}
+              {isLoading ? 'Verifying...' : 'Verify OTP'}
             </button>
 
-            {/* Toggle between OTP and Google Auth */}
+            {/* Switch to Google Auth */}
             <button
               type="button"
-              onClick={() => setIsGoogleAuth(!isGoogleAuth)}
+              onClick={() => navigate('/verify-google-auth')}
               className="text-sm text-indigo-600 hover:text-indigo-500 focus:outline-none"
             >
-              {isGoogleAuth ? 
-                'Switch to OTP verification' : 
-                'Use Google Authenticator instead'
-              }
+              Use Google Authenticator instead
             </button>
 
-            {/* Only show resend option for OTP */}
-            {!isGoogleAuth && (
-              <button
-                type="button"
-                onClick={handleResendOTP}
-                disabled={!canResend || resendLoading}
-                className={`text-sm text-indigo-600 hover:text-indigo-500 focus:outline-none ${
-                  !canResend || resendLoading ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
-              >
-                {resendLoading 
-                  ? 'Sending...' 
-                  : resendTimer > 0 
-                    ? `Resend OTP in ${resendTimer}s`
-                    : 'Resend OTP'
-                }
-              </button>
-            )}
+            {/* Resend OTP button */}
+            <button
+              type="button"
+              onClick={handleResendOTP}
+              disabled={!canResend || resendLoading}
+              className={`text-sm text-indigo-600 hover:text-indigo-500 focus:outline-none ${
+                !canResend || resendLoading ? 'opacity-50 cursor-not-allowed' : ''
+              }`}
+            >
+              {resendLoading 
+                ? 'Sending...' 
+                : resendTimer > 0 
+                  ? `Resend OTP in ${resendTimer}s`
+                  : 'Resend OTP'
+              }
+            </button>
           </div>
         </form>
       </div>

@@ -64,10 +64,6 @@ def user_login(request):
     if user is None:
         return Response({"error": "Invalid credentials"}, status=401)
 
-    # First login step - return success to show auth options
-    if not use_google_auth and not google_auth_code:
-        return Response({"success": True, "message": "Credentials verified"})
-
     # Handle Google Authenticator verification
     if use_google_auth and google_auth_code:
         # Get admin user for Google Auth verification
@@ -88,13 +84,21 @@ def user_login(request):
         else:
             return Response({"error": "Invalid Google Authenticator code"}, status=401)
 
-    # For regular OTP flow
+    # For regular OTP flow - generate OTP for all non-Google Auth requests
     otp = str(random.randint(100000, 999999))
     otp_storage[username] = {
         'otp': otp,
         'timestamp': datetime.now(pytz.UTC)
     }
-    print(otp)  # For development purposes
+    print("\n" + "="*80)
+    print(f"DEBUG: Generated OTP for {username}: {otp}")
+    print(f"DEBUG: OTP storage now contains: {otp_storage}")
+    print(f"DEBUG: Request data: {request.data}")
+    print("="*80 + "\n")
+
+    # First login step - return success to show auth options
+    if not use_google_auth and not google_auth_code:
+        return Response({"success": True, "message": "Credentials verified", "next": "/user/login/otpverification"})
 
     # Send OTP via Email
     # email_status = "OTP sent via email."
@@ -137,17 +141,19 @@ def user_login(request):
 def verify_user(request):
     username = request.data.get('username')
     otp_entered = request.data.get('otp')
-
     if not username or not otp_entered:
         return Response({"error": "Username and OTP are required."}, status=400)
 
     stored_otp_data = otp_storage.get(username)
+    
+
 
     if not stored_otp_data:
         return Response({"error": "No OTP found. Please request a new OTP."}, status=400)
 
-    # Check if OTP has expired (5 minutes)
+    # Check if OTP has expired (2 minutes)
     time_diff = datetime.now(pytz.UTC) - stored_otp_data['timestamp']
+
     if time_diff > timedelta(minutes=2):
         # Remove expired OTP
         del otp_storage[username]
@@ -162,6 +168,8 @@ def verify_user(request):
     # Generate JWT Token
     user = get_object_or_404(User, username=username)
     refresh = RefreshToken.for_user(user)
+    
+
 
     return Response({
         "message": "OTP verified successfully!",

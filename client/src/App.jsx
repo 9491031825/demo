@@ -16,6 +16,7 @@ import InventoryManagement from './components/dashboard/InventoryManagement';
 import CustomerInventory from './components/dashboard/CustomerInventory';
 import PurchaseInsightsPage from './components/pages/PurchaseInsightsPage';
 import PaymentInsightsPage from './components/pages/PaymentInsightsPage';
+import GoogleAuthVerification from './components/auth/GoogleAuthVerification';
 import { disableNumberInputScrolling } from './utils/inputUtils';
 
 function App() {
@@ -37,6 +38,7 @@ function App() {
       <Routes>
         <Route path="/login" element={<LoginForm />} />
         <Route path="/verify-otp" element={<OTPVerification />} />
+        <Route path="/verify-google-auth" element={<GoogleAuthVerification />} />
         <Route path="/setup-google-auth" element={<GoogleAuthSetup />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/admin" element={<AdminRedirect />} />

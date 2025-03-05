@@ -5,7 +5,7 @@ import axios from '../../services/axios';
 export default function SessionTimeout() {
   const location = useLocation();
   const navigate = useNavigate();
-  const excludedPaths = ['/login', '/verify-otp'];
+  const excludedPaths = ['/login', '/verify-otp', '/verify-google-auth'];
 
   // Don't set up inactivity timer on excluded paths
   useEffect(() => {
