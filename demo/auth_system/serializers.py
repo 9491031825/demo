@@ -147,33 +147,19 @@ class InventorySerializer(serializers.ModelSerializer):
         return obj.customer.name if obj.customer else None
 
 class InventoryExpenseSerializer(serializers.ModelSerializer):
-    inventory_details = serializers.SerializerMethodField()
+    """
+    Serializer for inventory expenses
+    """
+    customer_name = serializers.CharField(source='inventory.customer.name', read_only=True)
+    quality_type = serializers.CharField(source='inventory.quality_type', read_only=True)
     
     class Meta:
         model = InventoryExpense
         fields = [
-            'id',
-            'inventory',
-            'inventory_details',
-            'weight_loss',
-            'expenditure',
-            'old_quantity',
-            'new_quantity',
-            'old_avg_cost',
-            'new_avg_cost',
-            'notes',
-            'created_at',
-            'created_by'
+            'id', 'inventory', 'customer_name', 'quality_type',
+            'weight_loss', 'old_quantity', 'new_quantity',
+            'old_avg_cost', 'new_avg_cost', 'notes',
+            'is_processing', 'created_at', 'created_by'
         ]
-        read_only_fields = ['id', 'created_at', 'inventory_details']
-    
-    def get_inventory_details(self, obj):
-        if not obj.inventory:
-            return None
-        return {
-            'customer_name': obj.inventory.customer.name,
-            'quality_type': obj.inventory.quality_type,
-            'quantity': obj.inventory.quantity,
-            'avg_cost': obj.inventory.avg_cost
-        }
+        read_only_fields = ['id', 'created_at', 'created_by']
 

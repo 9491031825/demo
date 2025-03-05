@@ -269,21 +269,23 @@ class Inventory(models.Model):
 
 class InventoryExpense(models.Model):
     """
-    Model to track expenses and weight loss for inventory items.
+    Model to track inventory expenses and weight loss
     """
     inventory = models.ForeignKey(Inventory, on_delete=models.CASCADE, related_name='expenses')
     weight_loss = models.DecimalField(max_digits=10, decimal_places=2, default=0)
+    # We keep expenditure field for backward compatibility but it's no longer used
     expenditure = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     old_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     new_quantity = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     old_avg_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     new_avg_cost = models.DecimalField(max_digits=10, decimal_places=2, default=0)
     notes = models.TextField(blank=True, null=True)
+    is_processing = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
-    created_by = models.CharField(max_length=150, blank=True, null=True)
-
+    created_by = models.CharField(max_length=100, blank=True, null=True)
+    
     def __str__(self):
-        return f"{self.inventory.customer.name} - {self.inventory.quality_type} - Expense"
+        return f"Expense for {self.inventory.customer.name} - {self.inventory.quality_type}"
 
 # Register new models with auditlog
 auditlog.register(Inventory)

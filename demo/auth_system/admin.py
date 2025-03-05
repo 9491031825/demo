@@ -3,7 +3,7 @@ from django.contrib.auth.admin import UserAdmin
 from import_export.admin import ImportExportModelAdmin
 from import_export.formats.base_formats import CSV, JSON, XLSX
 from import_export import resources
-from .models import CustomUser, Customer, Transaction
+from .models import CustomUser, Customer, Transaction, InventoryExpense, Inventory
 from auditlog.models import LogEntry
 from auditlog.admin import LogEntryAdmin
 from django.urls import reverse
@@ -66,6 +66,29 @@ class TransactionAdmin(admin.ModelAdmin):
         'created_at'
     ]
     search_fields = ['customer__name']
+
+@admin.register(InventoryExpense)
+class InventoryExpenseAdmin(admin.ModelAdmin):
+    list_display = ('id', 'get_customer', 'get_quality_type', 'weight_loss', 
+                   'old_quantity', 'new_quantity', 'is_processing', 'created_at')
+    list_filter = ('is_processing', 'created_at', 'inventory__quality_type')
+    search_fields = ('inventory__customer__name', 'inventory__quality_type', 'notes')
+    readonly_fields = ('created_at',)
+    
+    def get_customer(self, obj):
+        return obj.inventory.customer.name
+    get_customer.short_description = 'Customer'
+    
+    def get_quality_type(self, obj):
+        return obj.inventory.quality_type
+    get_quality_type.short_description = 'Quality Type'
+
+@admin.register(Inventory)
+class InventoryAdmin(admin.ModelAdmin):
+    list_display = ('id', 'customer', 'quality_type', 'quantity', 'avg_cost', 'total_cost', 'created_at')
+    list_filter = ('quality_type', 'created_at')
+    search_fields = ('customer__name', 'quality_type')
+    readonly_fields = ('created_at',)
 
 # CustomLogEntryAdmin
 # class CustomLogEntryAdmin(LogEntryAdmin):

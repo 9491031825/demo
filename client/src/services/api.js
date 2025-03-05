@@ -282,25 +282,78 @@ export const inventoryAPI = {
     }
   },
   
-  addExpense: async (customerId, expenseData) => {
+  addExpense: async (customerId, data) => {
     try {
-      console.log('API call - Adding expense:', expenseData);
+      console.log('Adding expense:', data);
       
-      // Ensure numeric values are properly formatted
+      // Format data to ensure numeric values are properly parsed
       const formattedData = {
-        ...expenseData,
-        weight_loss: parseFloat(expenseData.weight_loss) || 0,
-        expenditure: parseFloat(expenseData.expenditure) || 0
+        quality_type: data.quality_type,
+        weight_loss: parseFloat(data.weight_loss) || 0,
+        notes: data.notes || ''
       };
       
+      console.log('Formatted expense data:', formattedData);
+      
       const response = await axios.post(
-        `/api/customers/${customerId}/inventory/add-expense/`, 
+        `/api/customers/${customerId}/inventory/add-expense/`,
         formattedData
       );
+      
       return response.data;
     } catch (error) {
-      console.error('Add inventory expense error:', error);
-      throw error;
+      console.error('Error adding expense:', error);
+      throw error.response || error;
+    }
+  },
+  
+  processInventory: async (customerId, data) => {
+    try {
+      console.log('Processing inventory:', data);
+      
+      // Calculate total input quantity
+      const totalInputQuantity = data.selectedItems
+        .filter(item => item.selected_quantity > 0)
+        .reduce((sum, item) => sum + parseFloat(item.selected_quantity), 0);
+      
+      const outputQuantity = parseFloat(data.output_quantity) || 0;
+      
+      // First, we need to reduce the input inventory items
+      const inputPromises = data.selectedItems.map(item => {
+        // Create an expense entry for each input item to reduce its quantity
+        return axios.post(
+          `/api/customers/${customerId}/inventory/add-expense/`,
+          {
+            quality_type: item.quality_type,
+            weight_loss: parseFloat(parseFloat(item.selected_quantity).toFixed(2)),
+            notes: `Processing input: Converting to ${data.output_quality_type}`
+          }
+        );
+      });
+      
+      // Wait for all input items to be processed
+      await Promise.all(inputPromises);
+      
+      // Now create a stock transaction to add the processed output
+      const stockData = {
+        customer_id: customerId,
+        quality_type: data.output_quality_type,
+        quantity: parseFloat(outputQuantity.toFixed(2)),
+        rate: parseFloat(parseFloat(data.selling_price).toFixed(2)) || 0,
+        total_amount: parseFloat((outputQuantity * parseFloat(data.selling_price)).toFixed(2)) || 0,
+        processing_cost: parseFloat(parseFloat(data.processing_cost).toFixed(2)) || 0,
+        notes: `Processed from ${parseFloat(totalInputQuantity.toFixed(2))}kg of input material. ${data.notes || ''}`
+      };
+      
+      console.log('Creating processed output stock:', stockData);
+      
+      // Use the stock transaction API to create the output inventory
+      const response = await transactionAPI.createStock(stockData);
+      
+      return response;
+    } catch (error) {
+      console.error('Error processing inventory:', error);
+      throw error.response?.data || error;
     }
   }
 };

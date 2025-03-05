@@ -272,7 +272,7 @@ def search_customers(request):
 @permission_classes([IsAuthenticated])
 def get_transactions(request, customer_id):
     # Verify the customer belongs to the current user
-    customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+    customer = get_object_or_404(Customer, id=customer_id)
     
     page = int(request.GET.get('page', 1))
     page_size = int(request.GET.get('page_size', 10))
@@ -340,7 +340,7 @@ def create_customer(request):
 def add_bank_account(request, customer_id):
     try:
         # Verify customer belongs to current user
-        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        customer = get_object_or_404(Customer, id=customer_id)
         
         # Log the incoming request data
         print("Received bank account data:", request.data)
@@ -370,7 +370,7 @@ def add_bank_account(request, customer_id):
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def get_bank_accounts(request, customer_id):
-    customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+    customer = get_object_or_404(Customer, id=customer_id)
     bank_accounts = customer.bank_accounts.all()
     serializer = BankAccountSerializer(bank_accounts, many=True)
     return Response(serializer.data)
@@ -378,7 +378,7 @@ def get_bank_accounts(request, customer_id):
 @api_view(['PATCH'])
 @permission_classes([IsAuthenticated])
 def update_customer(request, customer_id):
-    customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+    customer = get_object_or_404(Customer, id=customer_id)
     
     # Check if user has permission to edit sensitive information
     sensitive_fields = ['aadhaar_number', 'pan_number']
@@ -740,7 +740,7 @@ def get_transaction_details(request, transaction_id):
 @permission_classes([IsAuthenticated])
 def get_transaction_history(request, customer_id):
     try:
-        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        customer = get_object_or_404(Customer, id=customer_id)
 
         transactions = Transaction.objects.filter(customer=customer)
         serializer = TransactionSerializer(transactions, many=True)
@@ -792,7 +792,7 @@ def get_audit_logs(request):
 @permission_classes([IsAuthenticated])
 def get_customer_bank_accounts(request, customer_id):
     try:
-        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        customer = get_object_or_404(Customer, id=customer_id)
         bank_accounts = BankAccount.objects.filter(customer=customer)
         serializer = BankAccountSerializer(bank_accounts, many=True)
         return Response(serializer.data)
@@ -803,7 +803,7 @@ def get_customer_bank_accounts(request, customer_id):
 @permission_classes([IsAuthenticated])
 def get_customer_details(request, customer_id):
     try:
-        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        customer = get_object_or_404(Customer, id=customer_id)
         customer_data = CustomerSerializer(customer).data
         
         # Add a formatted identifier field that shows either GST or PAN
@@ -1162,7 +1162,7 @@ def get_pending_transactions(request, customer_id):
 def set_default_bank_account(request, customer_id, account_id):
     try:
         # Verify customer belongs to current user
-        customer = get_object_or_404(Customer, id=customer_id, user=request.user)
+        customer = get_object_or_404(Customer, id=customer_id)
         bank_account = get_object_or_404(BankAccount, id=account_id, customer=customer)
         
         # Remove default status from all other accounts
@@ -1321,27 +1321,22 @@ def add_inventory_expense(request, customer_id):
         
         quality_type = request.data.get('quality_type')
         
-        # Safely convert weight_loss and expenditure to Decimal
+        # Safely convert weight_loss to Decimal
         try:
             weight_loss = Decimal(str(request.data.get('weight_loss', 0)))
         except (ValueError, TypeError):
             weight_loss = Decimal('0')
             
-        try:
-            expenditure = Decimal(str(request.data.get('expenditure', 0)))
-        except (ValueError, TypeError):
-            expenditure = Decimal('0')
-            
         notes = request.data.get('notes', '')
         
-        print(f"Parsed data - quality_type: {quality_type}, weight_loss: {weight_loss}, expenditure: {expenditure}")
+        print(f"Parsed data - quality_type: {quality_type}, weight_loss: {weight_loss}")
         
         # Validate input
         if not quality_type:
             return Response({'error': 'Quality type is required'}, status=400)
         
-        if weight_loss <= Decimal('0') and expenditure <= Decimal('0'):
-            return Response({'error': 'Either weight loss or expenditure must be greater than 0'}, status=400)
+        if weight_loss <= Decimal('0'):
+            return Response({'error': 'Weight loss must be greater than 0'}, status=400)
         
         # Get or create inventory item
         with transaction.atomic():
@@ -1363,29 +1358,34 @@ def add_inventory_expense(request, customer_id):
             old_avg_cost = inventory_item.avg_cost
             old_total_cost = inventory_item.total_cost
             
-            # If weight loss is being applied, check inventory quantity
-            if weight_loss > Decimal('0'):
-                # If no inventory exists or quantity is 0, we can't apply weight loss
-                if inventory_item.quantity <= Decimal('0'):
-                    return Response({
-                        'error': 'No inventory available for this quality type'
-                    }, status=400)
-                
-                # Calculate new quantity after weight loss
-                new_quantity = inventory_item.quantity - weight_loss
-                
-                # Ensure we don't have negative quantity
-                if new_quantity < Decimal('0'):
-                    return Response({
-                        'error': 'Weight loss cannot exceed available quantity'
-                    }, status=400)
-                    
-                # Update quantity
-                inventory_item.quantity = new_quantity
+            # If no inventory exists or quantity is 0, we can't apply weight loss
+            if inventory_item.quantity <= Decimal('0'):
+                return Response({
+                    'error': 'No inventory available for this quality type'
+                }, status=400)
             
-            # If expenditure is being applied, update total cost
-            if expenditure > Decimal('0'):
-                inventory_item.total_cost += expenditure
+            # Calculate new quantity after weight loss
+            new_quantity = inventory_item.quantity - weight_loss
+            
+            # Ensure we don't have negative quantity
+            if new_quantity < Decimal('0'):
+                return Response({
+                    'error': 'Weight loss cannot exceed available quantity'
+                }, status=400)
+            
+            # When removing weight, adjust total cost proportionally
+            # This maintains the same avg_cost while reducing both quantity and total cost
+            if inventory_item.quantity > Decimal('0'):
+                # Calculate what percentage of quantity is being removed
+                removal_ratio = weight_loss / inventory_item.quantity
+                # Remove the same percentage from total cost
+                cost_to_remove = inventory_item.total_cost * removal_ratio
+                inventory_item.total_cost -= cost_to_remove
+                print(f"Removing cost: {cost_to_remove} based on ratio: {removal_ratio}")
+            
+            # Update quantity
+            inventory_item.quantity = new_quantity
+            print(f"Updated quantity to: {new_quantity}")
             
             # Save inventory item to recalculate avg_cost
             inventory_item.save()
@@ -1393,17 +1393,21 @@ def add_inventory_expense(request, customer_id):
             # Get new values after changes
             new_quantity = inventory_item.quantity
             new_avg_cost = inventory_item.avg_cost
+            new_total_cost = inventory_item.total_cost
+            
+            print(f"Final inventory state - quantity: {new_quantity}, avg_cost: {new_avg_cost}, total_cost: {new_total_cost}")
             
             # Create expense record with old and new values
             expense = InventoryExpense.objects.create(
                 inventory=inventory_item,
                 weight_loss=weight_loss,
-                expenditure=expenditure,
+                expenditure=Decimal('0'),  # We don't track expenditure anymore
                 old_quantity=old_quantity,
                 new_quantity=new_quantity,
                 old_avg_cost=old_avg_cost,
                 new_avg_cost=new_avg_cost,
                 notes=notes,
+                is_processing=True,  # Always mark as processing
                 created_by=request.user.username
             )
             
@@ -1413,7 +1417,7 @@ def add_inventory_expense(request, customer_id):
             expense_serializer = InventoryExpenseSerializer(expense)
             inventory_serializer = InventorySerializer(inventory_item)
             
-            return Response({
+            response_data = {
                 'expense': expense_serializer.data,
                 'inventory': inventory_serializer.data,
                 'changes': {
@@ -1421,15 +1425,18 @@ def add_inventory_expense(request, customer_id):
                     'new_quantity': float(new_quantity),
                     'old_avg_cost': float(old_avg_cost),
                     'new_avg_cost': float(new_avg_cost),
-                    'weight_loss': float(weight_loss),
-                    'expenditure': float(expenditure)
+                    'old_total_cost': float(old_total_cost),
+                    'new_total_cost': float(inventory_item.total_cost),
+                    'weight_loss': float(weight_loss)
                 }
-            }, status=201)
+            }
+            
+            return Response(response_data, status=201)
     except Exception as e:
         import traceback
         print(f"Error in add_inventory_expense: {str(e)}")
         print(traceback.format_exc())
-        return Response({'error': str(e)}, status=400)
+        return Response({'error': str(e)}, status=500)
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
