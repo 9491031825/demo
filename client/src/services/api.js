@@ -332,25 +332,10 @@ export const inventoryAPI = {
       });
       
       // Wait for all input items to be processed
-      await Promise.all(inputPromises);
+      const results = await Promise.all(inputPromises);
       
-      // Now create a stock transaction to add the processed output
-      const stockData = {
-        customer_id: customerId,
-        quality_type: data.output_quality_type,
-        quantity: parseFloat(outputQuantity.toFixed(2)),
-        rate: parseFloat(parseFloat(data.selling_price).toFixed(2)) || 0,
-        total_amount: parseFloat((outputQuantity * parseFloat(data.selling_price)).toFixed(2)) || 0,
-        processing_cost: parseFloat(parseFloat(data.processing_cost).toFixed(2)) || 0,
-        notes: `Processed from ${parseFloat(totalInputQuantity.toFixed(2))}kg of input material. ${data.notes || ''}`
-      };
-      
-      console.log('Creating processed output stock:', stockData);
-      
-      // Use the stock transaction API to create the output inventory
-      const response = await transactionAPI.createStock(stockData);
-      
-      return response;
+      // Return the results of processing the input items
+      return { message: `Successfully processed ${parseFloat(totalInputQuantity.toFixed(2))}kg of inventory without adding to database` };
     } catch (error) {
       console.error('Error processing inventory:', error);
       throw error.response?.data || error;

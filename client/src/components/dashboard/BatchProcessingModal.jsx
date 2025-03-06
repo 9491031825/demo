@@ -276,7 +276,7 @@ export default function BatchProcessingModal({ selectedCustomers, onClose, onSuc
       
       console.log('Items grouped by customer:', itemsByCustomer);
       
-      // Process each customer's inventory
+      // Process each customer's inventory (removing input quantities only)
       const processingPromises = [];
       
       for (const [customerId, items] of Object.entries(itemsByCustomer)) {
@@ -291,7 +291,7 @@ export default function BatchProcessingModal({ selectedCustomers, onClose, onSuc
         
         console.log(`Customer ${customerId}: Input=${parseFloat(customerInputQuantity.toFixed(2))}kg, Output=${customerOutputQuantity}kg (${(customerOutputRatio * 100).toFixed(2)}% of total)`);
         
-        // Process this customer's inventory
+        // Process this customer's inventory (only removing the input items)
         processingPromises.push(
           inventoryAPI.processInventory(customerId, {
             output_quality_type: processingData.output_quality_type,
@@ -310,7 +310,7 @@ export default function BatchProcessingModal({ selectedCustomers, onClose, onSuc
       // Wait for all processing to complete
       await Promise.all(processingPromises);
       
-      toast.success('Batch processing recorded successfully');
+      toast.success('Batch processing completed - items removed from inventory');
       
       // Reset form and notify parent component
       onSuccess();
@@ -345,6 +345,21 @@ export default function BatchProcessingModal({ selectedCustomers, onClose, onSuc
             </div>
           ) : (
             <div>
+              <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-6">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-yellow-400" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm text-yellow-700">
+                      <strong>Note:</strong> This will only remove the selected items from inventory. Processed output will not be added to the database.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               {/* Customer Inventory Selection */}
               <div className="mb-6">
                 <h3 className="text-lg font-medium mb-3 text-indigo-800 border-b border-indigo-100 pb-1">Select Inventory Items</h3>
@@ -606,7 +621,7 @@ export default function BatchProcessingModal({ selectedCustomers, onClose, onSuc
                         : 'bg-indigo-600 hover:bg-indigo-700'
                     } text-white px-4 py-2 rounded-md transition-colors duration-200 shadow-sm`}
                   >
-                    {isSubmitting ? 'Processing...' : 'Record Processing'}
+                    {isSubmitting ? 'Processing...' : 'Remove From Inventory'}
                   </button>
                 </div>
               </form>
