@@ -81,6 +81,7 @@ export default function SettlementPage() {
     // Update payment amount in settlements
     const updatedSettlements = [...settlements];
     updatedSettlements[index].payment_amount = value;
+    
     // Convert value to a number, defaulting to 0 if empty or NaN
     const numericValue = value === '' || isNaN(parseFloat(value)) ? 0 : parseFloat(value);
     updatedSettlements[index].remainingBalance = updatedSettlements[index].balance - numericValue;
@@ -111,18 +112,25 @@ export default function SettlementPage() {
         .map((s, index) => s.is_selected ? index : -1)
         .filter(index => index !== -1);
       
+      if (selectedIndices.length === 0) {
+        toast.error('Please select at least one customer to settle');
+        setIsSubmitting(false);
+        return;
+      }
+      
       // Validate all selected payments
       for (const index of selectedIndices) {
         const payment = paymentDetails[index];
+        const settlement = settlements[index];
         
         if (!payment.amount_paid || parseFloat(payment.amount_paid) <= 0) {
-          toast.error(`Please enter a valid payment amount for ${settlements[index].customer_name}`);
+          toast.error(`Please enter a valid payment amount for ${settlement.customer_name}`);
           setIsSubmitting(false);
           return;
         }
         
         if (payment.payment_type === 'bank' && !payment.bank_account_id) {
-          toast.error(`Please select a bank account for ${settlements[index].customer_name}`);
+          toast.error(`Please select a bank account for ${settlement.customer_name}`);
           setIsSubmitting(false);
           return;
         }
@@ -145,7 +153,7 @@ export default function SettlementPage() {
         
         // Add bank account if payment type is bank
         if (payment.payment_type === 'bank' && payment.bank_account_id) {
-          paymentData.bank_account = payment.bank_account_id;
+          paymentData.bank_account_id = payment.bank_account_id;
         }
         
         return paymentData;
@@ -157,10 +165,12 @@ export default function SettlementPage() {
       if (result) {
         toast.success(`Successfully processed ${paymentsToProcess.length} payments`);
         navigate('/dashboard');
+      } else {
+        throw new Error('Failed to process bulk payments');
       }
     } catch (error) {
       console.error('Error processing payments:', error);
-      toast.error('Failed to process payments');
+      toast.error(`Failed to process payments: ${error.message || 'Unknown error'}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -190,14 +200,15 @@ export default function SettlementPage() {
     try {
       // Validate payment
       const payment = paymentDetails[index];
+      const settlement = settlements[index];
       
       if (!payment.amount_paid || parseFloat(payment.amount_paid) <= 0) {
-        toast.error(`Please enter a valid payment amount for ${settlements[index].customer_name}`);
+        toast.error(`Please enter a valid payment amount for ${settlement.customer_name}`);
         return;
       }
       
       if (payment.payment_type === 'bank' && !payment.bank_account_id) {
-        toast.error(`Please select a bank account for ${settlements[index].customer_name}`);
+        toast.error(`Please select a bank account for ${settlement.customer_name}`);
         return;
       }
       
@@ -226,14 +237,18 @@ export default function SettlementPage() {
       
       // Add bank account ID if payment type is bank
       if (payment.payment_type === 'bank' && payment.bank_account_id) {
-        paymentData.bank_account = payment.bank_account_id;
+        paymentData.bank_account_id = payment.bank_account_id;
       }
       
       // Process payment
-      await transactionAPI.createPayment(paymentData);
+      const response = await transactionAPI.createPayment(paymentData);
+      
+      if (!response) {
+        throw new Error('Failed to process payment');
+      }
       
       // Update UI
-      toast.success(`Payment for ${settlements[index].customer_name} processed successfully`);
+      toast.success(`Payment for ${settlement.customer_name} processed successfully`);
       
       // Refresh customer data
       await refreshCustomerData(index);
@@ -242,7 +257,7 @@ export default function SettlementPage() {
       const resetPaymentDetails = [...paymentDetails];
       resetPaymentDetails[index] = {
         ...resetPaymentDetails[index],
-        amount_paid: '0',
+        amount_paid: '',
         bank_account_id: '',
         notes: ''
       };
@@ -250,7 +265,7 @@ export default function SettlementPage() {
       
     } catch (error) {
       console.error('Error processing single payment:', error);
-      toast.error(`Failed to process payment for ${settlements[index].customer_name}`);
+      toast.error(`Failed to process payment for ${settlements[index].customer_name}: ${error.message || 'Unknown error'}`);
     } finally {
       // Reset submitting state
       const updatedSettlements = [...settlements];
@@ -262,6 +277,11 @@ export default function SettlementPage() {
   const refreshCustomerData = async (index) => {
     try {
       const customerId = settlements[index].customer_id;
+      
+      // Show loading toast
+      const loadingToastId = toast.info('Refreshing customer data...', { autoClose: false });
+      
+      // Fetch updated balance data
       const balanceData = await customerAPI.getBalance(customerId);
       
       // Update settlements with new balance
@@ -282,8 +302,13 @@ export default function SettlementPage() {
       };
       setPaymentDetails(updatedPaymentDetails);
       
+      // Close loading toast and show success toast
+      toast.dismiss(loadingToastId);
+      toast.success(`Data for ${updatedSettlements[index].customer_name} refreshed successfully`);
+      
     } catch (error) {
       console.error('Error refreshing customer data:', error);
+      toast.error(`Failed to refresh customer data: ${error.message || 'Unknown error'}`);
     }
   };
 

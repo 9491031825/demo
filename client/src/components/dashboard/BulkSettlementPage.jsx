@@ -13,13 +13,8 @@ export default function BulkSettlementPage() {
       return;
     }
     
-    // Display success message
-    toast.success('Settlement successful! Redirecting to dashboard...');
-
-    // Redirect to dashboard after a delay
-    setTimeout(() => {
-      navigate('/settlement', { state: { selectedCustomers: selectedCustomers } });
-    }, 2000); // Adjust the delay as needed (2000ms = 2 seconds)
+    // Navigate to settlement page with selected customers
+    navigate('/settlement', { state: { selectedCustomers: selectedCustomers } });
   };
 
   return (
@@ -33,7 +28,7 @@ export default function BulkSettlementPage() {
             className="bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 
                        disabled:bg-gray-400 disabled:cursor-not-allowed"
           >
-            Settle Up ({selectedCustomers.length})
+            Proceed to Settlement ({selectedCustomers.length})
           </button>
           <button
             onClick={() => navigate('/dashboard')}
