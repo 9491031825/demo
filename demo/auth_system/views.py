@@ -179,48 +179,48 @@ def verify_user(request):
     }, status=200)
 
 #email sending otp
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def send_email_otp(request):
-    email = request.data.get('email')
-    user = get_object_or_404(User, email=email)
+# @api_view(['POST'])
+# @permission_classes([AllowAny])
+# def send_email_otp(request):
+#     email = request.data.get('email')
+#     user = get_object_or_404(User, email=email)
 
-    otp = random.randint(100000, 999999)
-    otp_storage[email] = otp  # Store OTP temporarily
+#     otp = random.randint(100000, 999999)
+#     otp_storage[email] = otp  # Store OTP temporarily
 
-    # Send email using Django's email functionality
-    send_mail(
-        subject="Your OTP Verification Code",
-        message=f"Your OTP is: {otp}",
-        from_email="pallelarakesh5@gmail.com",
-        recipient_list=[email],
-        fail_silently=False,
-    )
+#     # Send email using Django's email functionality
+#     send_mail(
+#         subject="Your OTP Verification Code",
+#         message=f"Your OTP is: {otp}",
+#         from_email="pallelarakesh5@gmail.com",
+#         recipient_list=[email],
+#         fail_silently=False,
+#     )
 
-    return Response({"message": "Email OTP sent successfully"})
+#     return Response({"message": "Email OTP sent successfully"})
 
 #email otp verification
-@api_view(['POST'])
-@permission_classes([AllowAny])
-def verify_email_otp(request):
-    email = request.data.get('email')
-    otp = int(request.data.get('otp'))
+# @api_view(['POST'])
+# @permission_classes([AllowAny])
+# def verify_email_otp(request):
+#     email = request.data.get('email')
+#     otp = int(request.data.get('otp'))
 
-    if otp_storage.get(email) == otp:
-        user = get_object_or_404(User, email=email)
-        user.verified_email = True
-        user.save()
-        del otp_storage[email]
+#     if otp_storage.get(email) == otp:
+#         user = get_object_or_404(User, email=email)
+#         user.verified_email = True
+#         user.save()
+#         del otp_storage[email]
         
-        # Generate JWT tokens
-        refresh = RefreshToken.for_user(user)
-        return Response({
-            "message": "Email verified successfully",
-            "token": str(refresh.access_token),
-            "next": "/home/"
-        })
+#         # Generate JWT tokens
+#         refresh = RefreshToken.for_user(user)
+#         return Response({
+#             "message": "Email verified successfully",
+#             "token": str(refresh.access_token),
+#             "next": "/home/"
+#         })
 
-    return Response({"error": "Invalid OTP"}, status=400)
+#     return Response({"error": "Invalid OTP"}, status=400)
 
 #home Page
 @api_view(['GET'])
@@ -228,21 +228,21 @@ def verify_email_otp(request):
 def home_page(request):
     return Response({"message": "Welcome to the secured home page!"})
 
-@csrf_exempt
-def twilio_incoming(request):
-    data = json.loads(request.body)
-    sender = data.get('From')
-    message = data.get('Body')
-    print(f"Incoming message from {sender}: {message}")
-    return JsonResponse({"message": "Received"})
+# @csrf_exempt
+# def twilio_incoming(request):
+#     data = json.loads(request.body)
+#     sender = data.get('From')
+#     message = data.get('Body')
+#     print(f"Incoming message from {sender}: {message}")
+#     return JsonResponse({"message": "Received"})
 
-@csrf_exempt
-def twilio_status(request):
-    data = json.loads(request.body)
-    message_sid = data.get('MessageSid')
-    status = data.get('MessageStatus')
-    print(f"Message {message_sid} status: {status}")
-    return JsonResponse({"message": "Status received"})
+# @csrf_exempt
+# def twilio_status(request):
+#     data = json.loads(request.body)
+#     message_sid = data.get('MessageSid')
+#     status = data.get('MessageStatus')
+#     print(f"Message {message_sid} status: {status}")
+#     return JsonResponse({"message": "Status received"})
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
